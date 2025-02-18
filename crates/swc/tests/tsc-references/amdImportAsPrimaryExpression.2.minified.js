@@ -3,16 +3,15 @@ define([
     "require",
     "exports"
 ], function(require, exports) {
-    "use strict";
-    var E1, E11;
     Object.defineProperty(exports, "__esModule", {
         value: !0
     }), Object.defineProperty(exports, "E1", {
         enumerable: !0,
         get: function() {
-            return E1;
+            return E11;
         }
-    }), (E11 = E1 || (E1 = {}))[E11.A = 0] = "A", E11[E11.B = 1] = "B", E11[E11.C = 2] = "C";
+    });
+    var E1, E11 = ((E1 = {})[E1.A = 0] = "A", E1[E1.B = 1] = "B", E1[E1.C = 2] = "C", E1);
 });
 //// [foo_1.ts]
 define([
@@ -20,7 +19,6 @@ define([
     "exports",
     "./foo_0"
 ], function(require, exports, _foo_0) {
-    "use strict";
     Object.defineProperty(exports, "__esModule", {
         value: !0
     }), _foo_0.E1.A;

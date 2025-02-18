@@ -3,19 +3,7 @@
 // See LICENSE.txt in the project root for complete license information.
 ///<reference path='typescript.ts' />
 import { _ as _class_call_check } from "@swc/helpers/_/_class_call_check";
-var TypeScript;
 (function(TypeScript) {
-    var prePrintAST = function prePrintAST(ast, parent, walker) {
-        var pc = walker.state;
-        ast.print(pc);
-        pc.increaseIndent();
-        return ast;
-    };
-    var postPrintAST = function postPrintAST(ast, parent, walker) {
-        var pc = walker.state;
-        pc.decreaseIndent();
-        return ast;
-    };
     var PrintContext = /*#__PURE__*/ function() {
         "use strict";
         function PrintContext(outfile, parser) {
@@ -58,7 +46,20 @@ var TypeScript;
         };
         return PrintContext;
     }();
+    // TODO: refactor indent logic for use in emit
     TypeScript.PrintContext = PrintContext;
+    function prePrintAST(ast, parent, walker) {
+        var pc = walker.state;
+        ast.print(pc);
+        pc.increaseIndent();
+        return ast;
+    }
     TypeScript.prePrintAST = prePrintAST;
+    function postPrintAST(ast, parent, walker) {
+        var pc = walker.state;
+        pc.decreaseIndent();
+        return ast;
+    }
     TypeScript.postPrintAST = postPrintAST;
 })(TypeScript || (TypeScript = {}));
+var TypeScript;

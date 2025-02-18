@@ -1,14 +1,14 @@
 //// [additionOperatorWithNumberAndEnum.ts]
-var E;
-(function(E) {
+var E = /*#__PURE__*/ function(E) {
     E[E["a"] = 0] = "a";
     E[E["b"] = 1] = "b";
-})(E || (E = {}));
-var F;
-(function(F) {
+    return E;
+}(E || {});
+var F = /*#__PURE__*/ function(F) {
     F[F["c"] = 0] = "c";
     F[F["d"] = 1] = "d";
-})(F || (F = {}));
+    return F;
+}(F || {});
 var a;
 var b;
 var c;
@@ -17,10 +17,10 @@ var r2 = a + b;
 var r3 = b + a;
 var r4 = b + b;
 var r5 = 0 + a;
-var r6 = E.a + 0;
-var r7 = E.a + E.b;
-var r8 = E["a"] + E["b"];
-var r9 = E["a"] + F["c"];
+var r6 = 0 + 0;
+var r7 = 0 + 1;
+var r8 = 0 + 1;
+var r9 = 0 + 0;
 var r10 = a + c;
 var r11 = c + a;
 var r12 = b + c;

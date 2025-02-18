@@ -3,8 +3,9 @@ use std::{
     sync::Arc,
 };
 
+use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
-use swc_common::{collections::AHashSet, errors::HANDLER, SourceMap, Span};
+use swc_common::{errors::HANDLER, SourceMap, Span};
 use swc_ecma_ast::*;
 use swc_ecma_visit::{noop_visit_type, Visit, VisitWith};
 
@@ -50,10 +51,10 @@ impl FunctionModifiers {
 #[serde(rename_all = "camelCase")]
 pub struct NoEmptyFunctionConfig {
     consider_comments: Option<bool>,
-    functions: Option<AHashSet<FunctionModifiers>>,
-    arrow_functions: Option<AHashSet<FunctionModifiers>>,
-    methods: Option<AHashSet<FunctionModifiers>>,
-    constructors: Option<AHashSet<FunctionModifiers>>,
+    functions: Option<FxHashSet<FunctionModifiers>>,
+    arrow_functions: Option<FxHashSet<FunctionModifiers>>,
+    methods: Option<FxHashSet<FunctionModifiers>>,
+    constructors: Option<FxHashSet<FunctionModifiers>>,
 }
 
 pub fn no_empty_function(
@@ -75,10 +76,10 @@ struct NoEmptyFunction {
 
     expected_reaction: LintRuleReaction,
     consider_comments: bool,
-    functions: Option<AHashSet<FunctionModifiers>>,
-    arrow_functions: Option<AHashSet<FunctionModifiers>>,
-    methods: Option<AHashSet<FunctionModifiers>>,
-    constructors: Option<AHashSet<FunctionModifiers>>,
+    functions: Option<FxHashSet<FunctionModifiers>>,
+    arrow_functions: Option<FxHashSet<FunctionModifiers>>,
+    methods: Option<FxHashSet<FunctionModifiers>>,
+    constructors: Option<FxHashSet<FunctionModifiers>>,
 }
 
 impl Debug for NoEmptyFunction {
@@ -211,7 +212,7 @@ impl NoEmptyFunction {
         &self,
         span: Span,
         target_type: &str,
-        allowed: Option<&AHashSet<FunctionModifiers>>,
+        allowed: Option<&FxHashSet<FunctionModifiers>>,
         modifiers: &[FunctionModifiers],
     ) {
         if let Some(allowed) = allowed {
@@ -263,7 +264,7 @@ impl Visit for NoEmptyFunction {
     noop_visit_type!();
 
     fn visit_function(&mut self, function: &Function) {
-        if let Some(BlockStmt { stmts, span }) = &function.body {
+        if let Some(BlockStmt { stmts, span, .. }) = &function.body {
             if self.consider_comments && self.has_comment_in_body(span) {
                 return;
             }
@@ -290,7 +291,7 @@ impl Visit for NoEmptyFunction {
     }
 
     fn visit_arrow_expr(&mut self, function: &ArrowExpr) {
-        if let BlockStmtOrExpr::BlockStmt(BlockStmt { stmts, span }) = &*function.body {
+        if let BlockStmtOrExpr::BlockStmt(BlockStmt { stmts, span, .. }) = &*function.body {
             if self.consider_comments && self.has_comment_in_body(span) {
                 return;
             }
@@ -317,7 +318,7 @@ impl Visit for NoEmptyFunction {
     }
 
     fn visit_constructor(&mut self, constructor: &Constructor) {
-        if let Some(BlockStmt { span, stmts }) = &constructor.body {
+        if let Some(BlockStmt { span, stmts, .. }) = &constructor.body {
             if self.consider_comments && self.has_comment_in_body(span) {
                 return;
             }
@@ -347,7 +348,7 @@ impl Visit for NoEmptyFunction {
     fn visit_class_method(&mut self, class_method: &ClassMethod) {
         let method = &class_method.function;
 
-        if let Some(BlockStmt { span, stmts }) = &method.body {
+        if let Some(BlockStmt { span, stmts, .. }) = &method.body {
             if self.consider_comments && self.has_comment_in_body(span) {
                 return;
             }

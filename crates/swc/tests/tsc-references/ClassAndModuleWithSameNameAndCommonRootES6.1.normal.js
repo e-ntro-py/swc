@@ -1,7 +1,5 @@
 //// [class.ts]
-var X;
 (function(X) {
-    let Y;
     (function(Y) {
         class Point {
             constructor(x, y){
@@ -10,19 +8,18 @@ var X;
             }
         }
         Y.Point = Point;
-    })(Y = X.Y || (X.Y = {}));
+    })(X.Y || (X.Y = {}));
 })(X || (X = {}));
-//// [module.ts]
 var X;
+//// [module.ts]
 (function(X) {
-    let Y;
     (function(Y) {
-        let Point;
-        (function(Point1) {
-            var Origin = Point1.Origin = new Point(0, 0);
-        })(Point = Y.Point || (Y.Point = {}));
-    })(Y = X.Y || (X.Y = {}));
+        (function(Point) {
+            Point.Origin = new Y.Point(0, 0);
+        })(Y.Point || (Y.Point = {}));
+    })(X.Y || (X.Y = {}));
 })(X || (X = {}));
+var X;
 //// [test.ts]
 //var cl: { x: number; y: number; }
 var cl = new X.Y.Point(1, 1);
@@ -30,8 +27,8 @@ var cl = X.Y.Point.Origin; // error not expected here same as bug 83996 ?
 //// [simple.ts]
 class A {
 }
-(function(A1) {
-    var Instance = A1.Instance = new A();
+(function(A) {
+    A.Instance = new A();
 })(A || (A = {}));
 // ensure merging works as expected
 var a = A.Instance;

@@ -2,7 +2,8 @@ use std::{collections::VecDeque, iter::from_fn, mem::take, time::Instant};
 
 use indexmap::IndexSet;
 use petgraph::EdgeDirection::Outgoing;
-use swc_common::{collections::AHashSet, sync::Lrc, SourceMap, SyntaxContext};
+use rustc_hash::{FxBuildHasher, FxHashSet};
+use swc_common::{sync::Lrc, SourceMap, SyntaxContext};
 use swc_ecma_ast::*;
 use swc_ecma_utils::prepend_stmts;
 
@@ -26,7 +27,7 @@ impl Modules {
         cm: &Lrc<SourceMap>,
     ) -> Vec<Chunk> {
         let injected_ctxt = self.injected_ctxt;
-        let mut chunks = vec![];
+        let mut chunks = Vec::new();
 
         let mut modules = take(&mut self.modules);
 
@@ -65,7 +66,7 @@ fn toposort_real_modules<'a>(
     let mut queue = modules.iter().map(|v| v.0).collect::<VecDeque<_>>();
     queue.push_front(entry);
 
-    let mut chunks = vec![];
+    let mut chunks = Vec::new();
 
     tracing::debug!(
         "Topologically sorting modules based on the dependency graph: ({} items)",
@@ -84,7 +85,7 @@ fn toposort_real_modules<'a>(
             continue;
         }
 
-        let mut stmts = vec![];
+        let mut stmts = Vec::new();
 
         for id in ids.iter().copied().rev() {
             if let Some((_, module)) = modules.iter_mut().find(|(module_id, _)| *module_id == id) {
@@ -133,7 +134,7 @@ fn cycles_for(
     cycles: &[Vec<ModuleId>],
     id: ModuleId,
     checked: &mut Vec<ModuleId>,
-) -> IndexSet<ModuleId, ahash::RandomState> {
+) -> IndexSet<ModuleId, FxBuildHasher> {
     checked.push(id);
     let mut v = cycles
         .iter()
@@ -159,8 +160,8 @@ fn toposort_real_module_ids<'a>(
     graph: &'a ModuleGraph,
     cycles: &'a [Vec<ModuleId>],
 ) -> impl 'a + Iterator<Item = Vec<ModuleId>> {
-    let mut done = AHashSet::<ModuleId>::default();
-    let mut errorred = AHashSet::<ModuleId>::default();
+    let mut done = FxHashSet::<ModuleId>::default();
+    let mut errorred = FxHashSet::<ModuleId>::default();
 
     from_fn(move || {
         while let Some(id) = queue.pop_front() {

@@ -9,18 +9,18 @@ var A2 = function A2() {
     "use strict";
     _class_call_check(this, A2);
 };
-var E;
-(function(E) {
+var E = /*#__PURE__*/ function(E) {
     E[E["A"] = 0] = "A";
-})(E || (E = {}));
+    return E;
+}(E || {});
 function f() {}
 (function(f) {
-    var bar = f.bar = 1;
+    f.bar = 1;
 })(f || (f = {}));
 var c = function c() {
     "use strict";
     _class_call_check(this, c);
 };
 (function(c) {
-    var bar = c.bar = 1;
+    c.bar = 1;
 })(c || (c = {}));

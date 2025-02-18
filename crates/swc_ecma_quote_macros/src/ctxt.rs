@@ -2,8 +2,7 @@
 
 use std::cell::RefCell;
 
-use pmutil::q;
-use swc_common::collections::AHashMap;
+use rustc_hash::FxHashMap;
 use swc_macros_common::call_site;
 use syn::{parse_quote, punctuated::Punctuated, ExprPath, ExprReference, Ident, Token};
 
@@ -11,7 +10,7 @@ use crate::{ast::ToCode, input::QuoteVar};
 
 #[derive(Debug)]
 pub(crate) struct Ctx {
-    pub(crate) vars: AHashMap<VarPos, Vars>,
+    pub(crate) vars: FxHashMap<VarPos, Vars>,
 }
 
 impl Ctx {
@@ -25,6 +24,7 @@ pub enum VarPos {
     Ident,
     Expr,
     Pat,
+    AssignTarget,
     Str,
 }
 
@@ -76,14 +76,14 @@ impl VarData {
     }
 }
 
-pub type Vars = AHashMap<String, VarData>;
+pub type Vars = FxHashMap<String, VarData>;
 
 pub(super) fn prepare_vars(
     src: &dyn ToCode,
     vars: Punctuated<QuoteVar, Token![,]>,
-) -> (Vec<syn::Stmt>, AHashMap<VarPos, Vars>) {
-    let mut stmts = vec![];
-    let mut init_map = AHashMap::<_, Vars>::default();
+) -> (Vec<syn::Stmt>, FxHashMap<VarPos, Vars>) {
+    let mut stmts = Vec::new();
+    let mut init_map = FxHashMap::<_, Vars>::default();
 
     for var in vars {
         let value = var.value;
@@ -106,7 +106,8 @@ pub(super) fn prepare_vars(
                     "Expr" => VarPos::Expr,
                     "Pat" => VarPos::Pat,
                     "Str" => VarPos::Str,
-                    _ => panic!("Invalid type: {}", segment.ident),
+                    "AssignTarget" => VarPos::AssignTarget,
+                    _ => panic!("Invalid type: {:?}", segment.ident),
                 }
             }
             None => VarPos::Ident,
@@ -139,6 +140,7 @@ pub(super) fn prepare_vars(
                 VarPos::Ident => "Ident",
                 VarPos::Expr => "Expr",
                 VarPos::Pat => "Pat",
+                VarPos::AssignTarget => "AssignTarget",
                 VarPos::Str => "Str",
             },
             call_site(),

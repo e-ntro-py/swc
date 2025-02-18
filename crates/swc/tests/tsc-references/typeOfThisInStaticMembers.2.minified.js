@@ -1,7 +1,6 @@
 //// [typeOfThisInStaticMembers.ts]
 import { _ as _class_call_check } from "@swc/helpers/_/_class_call_check";
-var t = (function() {
-    "use strict";
+var t = /*#__PURE__*/ (function() {
     function C(x) {
         _class_call_check(this, C);
     }
@@ -10,8 +9,7 @@ var t = (function() {
     }, C;
 })().bar();
 t.foo, t.bar(), new t(1);
-var t2 = (function() {
-    "use strict";
+var t2 = /*#__PURE__*/ (function() {
     function C2(x) {
         _class_call_check(this, C2);
     }
@@ -19,4 +17,4 @@ var t2 = (function() {
         return this;
     }, C2;
 })().bar();
-t2.foo, t2.bar(), new t2("");
+t2.foo, t2.bar(), new t2('');

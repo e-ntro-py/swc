@@ -6,7 +6,7 @@ use std::{
 use is_macro::Is;
 #[cfg(feature = "serde-impl")]
 use serde::{Deserialize, Serialize};
-use swc_atoms::{Atom, JsWord};
+use swc_atoms::Atom;
 use swc_common::{ast_node, util::take::Take, EqIgnoreSpan, Span};
 
 #[ast_node("PreservedToken")]
@@ -31,8 +31,8 @@ impl Take for TokenAndSpan {
     any(feature = "rkyv-impl"),
     derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)
 )]
-#[cfg_attr(feature = "rkyv-impl", archive(check_bytes))]
-#[cfg_attr(feature = "rkyv-impl", archive_attr(repr(C)))]
+#[cfg_attr(feature = "rkyv-impl", derive(bytecheck::CheckBytes))]
+#[cfg_attr(feature = "rkyv-impl", repr(C))]
 pub struct UrlKeyValue(pub Atom, pub Atom);
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, Is, EqIgnoreSpan)]
@@ -40,15 +40,12 @@ pub struct UrlKeyValue(pub Atom, pub Atom);
     feature = "rkyv",
     derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)
 )]
-#[cfg_attr(feature = "rkyv", archive(check_bytes))]
-#[cfg_attr(feature = "rkyv", archive_attr(repr(u32)))]
+#[cfg_attr(feature = "rkyv", derive(bytecheck::CheckBytes))]
+#[cfg_attr(feature = "rkyv", repr(u32))]
 #[cfg_attr(
     feature = "rkyv",
-    archive(bound(
-        serialize = "__S: rkyv::ser::Serializer + rkyv::ser::ScratchSpace + \
-                     rkyv::ser::SharedSerializeRegistry",
-        deserialize = "__D: rkyv::de::SharedDeserializeRegistry"
-    ))
+    rkyv(serialize_bounds(__S: rkyv::ser::Writer + rkyv::ser::Allocator,
+        __S::Error: rkyv::rancor::Source))
 )]
 #[cfg_attr(feature = "serde-impl", derive(Serialize, Deserialize))]
 pub enum NumberType {
@@ -63,14 +60,14 @@ pub enum NumberType {
     feature = "rkyv",
     derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)
 )]
-#[cfg_attr(feature = "rkyv", archive(check_bytes))]
-#[cfg_attr(feature = "rkyv", archive_attr(repr(C)))]
+#[cfg_attr(feature = "rkyv", derive(bytecheck::CheckBytes))]
+#[cfg_attr(feature = "rkyv", repr(C))]
 #[cfg_attr(feature = "serde-impl", derive(Serialize, Deserialize))]
 pub struct DimensionToken {
     pub value: f64,
     pub raw_value: Atom,
-    #[cfg_attr(feature = "rkyv", with(swc_atoms::EncodeJsWord))]
-    pub unit: JsWord,
+
+    pub unit: Atom,
 
     #[cfg_attr(feature = "serde-impl", serde(rename = "type"))]
     pub type_flag: NumberType,
@@ -82,44 +79,37 @@ pub struct DimensionToken {
     feature = "rkyv",
     derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)
 )]
-#[cfg_attr(feature = "rkyv", archive(check_bytes))]
-#[cfg_attr(feature = "rkyv", archive_attr(repr(u32)))]
+#[cfg_attr(feature = "rkyv", derive(bytecheck::CheckBytes))]
+#[cfg_attr(feature = "rkyv", repr(u32))]
 #[cfg_attr(
     feature = "rkyv",
-    archive(bound(
-        serialize = "__S: rkyv::ser::Serializer + rkyv::ser::ScratchSpace + \
-                     rkyv::ser::SharedSerializeRegistry",
-        deserialize = "__D: rkyv::de::SharedDeserializeRegistry"
-    ))
+    rkyv(serialize_bounds(__S: rkyv::ser::Writer + rkyv::ser::Allocator,
+        __S::Error: rkyv::rancor::Source))
 )]
 #[cfg_attr(feature = "serde-impl", derive(serde::Serialize, serde::Deserialize))]
 pub enum Token {
     Ident {
-        #[cfg_attr(feature = "rkyv", with(swc_atoms::EncodeJsWord))]
-        value: JsWord,
+        value: Atom,
         raw: Atom,
     },
     Function {
-        #[cfg_attr(feature = "rkyv", with(swc_atoms::EncodeJsWord))]
-        value: JsWord,
+        value: Atom,
         raw: Atom,
     },
     /// `@`
     AtKeyword {
-        #[cfg_attr(feature = "rkyv", with(swc_atoms::EncodeJsWord))]
-        value: JsWord,
+        value: Atom,
         raw: Atom,
     },
     /// `#`
     Hash {
         is_id: bool,
-        #[cfg_attr(feature = "rkyv", with(swc_atoms::EncodeJsWord))]
-        value: JsWord,
+
+        value: Atom,
         raw: Atom,
     },
     String {
-        #[cfg_attr(feature = "rkyv", with(swc_atoms::EncodeJsWord))]
-        value: JsWord,
+        value: Atom,
         raw: Atom,
     },
     BadString {
@@ -127,8 +117,7 @@ pub enum Token {
     },
     /// `url(value)`
     Url {
-        #[cfg_attr(feature = "rkyv", with(swc_atoms::EncodeJsWord))]
-        value: JsWord,
+        value: Atom,
         /// Name and value
         raw: Box<UrlKeyValue>,
     },
@@ -269,9 +258,7 @@ impl Hash for Token {
             | Token::LParen
             | Token::RParen
             | Token::LBrace
-            | Token::RBrace => {
-                self.hash(state);
-            }
+            | Token::RBrace => {}
         }
     }
 }

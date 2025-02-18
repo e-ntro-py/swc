@@ -3,13 +3,14 @@
 use std::sync::Arc;
 
 use dashmap::DashMap;
+use rustc_hash::FxBuildHasher;
 use swc_atoms::atom;
 use swc_common::{
     comments::{Comment, CommentKind, Comments},
     BytePos, DUMMY_SP,
 };
 
-type CommentMap = Arc<DashMap<BytePos, Vec<Comment>, ahash::RandomState>>;
+type CommentMap = Arc<DashMap<BytePos, Vec<Comment>, FxBuildHasher>>;
 
 /// Multi-threaded implementation of [Comments]
 #[derive(Clone, Default)]
@@ -130,5 +131,30 @@ impl Comments for SwcComments {
         };
 
         ret
+    }
+
+    fn has_flag(&self, lo: BytePos, flag: &str) -> bool {
+        self.with_leading(lo, |comments| {
+            for c in comments {
+                if c.kind == CommentKind::Block {
+                    for line in c.text.lines() {
+                        // jsdoc
+                        let line = line.trim_start_matches(['*', ' ']);
+                        let line = line.trim();
+
+                        //
+                        if line.len() == (flag.len() + 5)
+                            && (line.starts_with("#__") || line.starts_with("@__"))
+                            && line.ends_with("__")
+                            && flag == &line[3..line.len() - 2]
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            false
+        })
     }
 }

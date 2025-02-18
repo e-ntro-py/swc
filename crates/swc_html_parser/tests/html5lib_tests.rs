@@ -4,10 +4,10 @@
 use std::{fs, mem::take, path::PathBuf};
 
 use common::{document_span_visualizer, DomVisualizer};
+use rustc_hash::FxHashSet;
 use serde_json::Value;
 use swc_atoms::JsWord;
 use swc_common::{
-    collections::AHashSet,
     input::{SourceFileInput, StringInput},
     BytePos,
 };
@@ -63,7 +63,7 @@ fn html5lib_test_tokenizer(input: PathBuf) {
     let filename = input.to_str().expect("failed to parse path");
     let contents = fs::read_to_string(filename).expect("Something went wrong reading the file");
     let obj: Value = serde_json::from_str(&contents).expect("json parse error");
-    let tests = match obj.get(&"tests".to_string()) {
+    let tests = match obj.get("tests".to_string()) {
         Some(Value::Array(tests)) => tests,
         _ => return,
     };
@@ -74,7 +74,7 @@ fn html5lib_test_tokenizer(input: PathBuf) {
             .expect("failed to get input in test");
 
         let states = if let Some(initial_states) = test.get("initialStates") {
-            let mut states = vec![];
+            let mut states = Vec::new();
             let json_states: Vec<String> = serde_json::from_value(initial_states.clone())
                 .expect("failed to get input in test");
 
@@ -146,7 +146,7 @@ fn html5lib_test_tokenizer(input: PathBuf) {
                 lexer.set_last_start_tag_name(&last_start_tag);
             }
 
-            let mut actual_tokens = vec![];
+            let mut actual_tokens = Vec::new();
 
             loop {
                 let token_and_span = lexer.next();
@@ -168,8 +168,8 @@ fn html5lib_test_tokenizer(input: PathBuf) {
                     } => {
                         *raw_tag_name = None;
 
-                        let mut new_attributes = vec![];
-                        let mut already_seen: AHashSet<JsWord> = Default::default();
+                        let mut new_attributes = Vec::new();
+                        let mut already_seen: FxHashSet<JsWord> = Default::default();
 
                         for mut attribute in take(attributes) {
                             if already_seen.contains(&attribute.name) {
@@ -201,7 +201,7 @@ fn html5lib_test_tokenizer(input: PathBuf) {
                     } => {
                         *raw_tag_name = None;
                         *is_self_closing = false;
-                        *attributes = vec![];
+                        *attributes = Vec::new();
                     }
                     Token::Character { ref mut raw, .. } => {
                         *raw = None;
@@ -215,7 +215,7 @@ fn html5lib_test_tokenizer(input: PathBuf) {
                 actual_tokens.push(new_token);
             }
 
-            let mut expected_tokens: Vec<Token> = vec![];
+            let mut expected_tokens: Vec<Token> = Vec::new();
 
             if let Some(output_tokens) = json_output.as_array() {
                 for output_token in output_tokens {
@@ -248,7 +248,7 @@ fn html5lib_test_tokenizer(input: PathBuf) {
                                     let tag_name: String =
                                         serde_json::from_value(token_parts[1].clone())
                                             .expect("failed to deserialize");
-                                    let mut attributes = vec![];
+                                    let mut attributes = Vec::new();
 
                                     if let Some(json_attributes) = token_parts.get(2) {
                                         let obj_attributes: Value =
@@ -308,7 +308,7 @@ fn html5lib_test_tokenizer(input: PathBuf) {
                                         tag_name: tag_name.into(),
                                         raw_tag_name: None,
                                         is_self_closing: false,
-                                        attributes: vec![],
+                                        attributes: Vec::new(),
                                     }]
                                 }
                                 "Character" => {
@@ -325,7 +325,7 @@ fn html5lib_test_tokenizer(input: PathBuf) {
                                         };
                                     }
 
-                                    let mut tokens = vec![];
+                                    let mut tokens = Vec::new();
 
                                     for c in data.chars() {
                                         tokens.push(Token::Character {
@@ -578,11 +578,11 @@ fn html5lib_test_tree_construction(input: PathBuf) {
         let mut counter = 0;
 
         while let Some(test) = tests.next() {
-            let mut data: Vec<&str> = vec![];
-            let mut document: Vec<&str> = vec![];
-            let mut document_fragment: Vec<&str> = vec![];
-            let mut errors: Vec<&str> = vec![];
-            let mut new_errors: Vec<&str> = vec![];
+            let mut data: Vec<&str> = Vec::new();
+            let mut document: Vec<&str> = Vec::new();
+            let mut document_fragment: Vec<&str> = Vec::new();
+            let mut errors: Vec<&str> = Vec::new();
+            let mut new_errors: Vec<&str> = Vec::new();
             let mut scripting_enabled = false;
 
             let mut state = Some(TestState::Data);
@@ -660,8 +660,8 @@ fn html5lib_test_tree_construction(input: PathBuf) {
             file_stem.push_str(&counter.to_string());
 
             // TODO workaround, fix - https://github.com/html5lib/html5lib-tests/pull/151
-            let need_skip_fragment = relative_path_to_test.contains("template_dat")
-                && matches!(counter, 109 | 110 | 111);
+            let need_skip_fragment =
+                relative_path_to_test.contains("template_dat") && matches!(counter, 109..=111);
 
             if !need_skip_fragment && !document_fragment.is_empty() {
                 file_stem += ".fragment_";
@@ -721,6 +721,7 @@ fn html5lib_test_tree_construction(input: PathBuf) {
         let config = ParserConfig {
             scripting_enabled,
             iframe_srcdoc: false,
+            allow_self_closing: false,
         };
         let mut parser = Parser::new(lexer, config);
 
@@ -759,9 +760,9 @@ fn html5lib_test_tree_construction(input: PathBuf) {
                 span: Default::default(),
                 namespace: context_element_namespace,
                 tag_name: context_element_tag_name.into(),
-                attributes: vec![],
+                attributes: Vec::new(),
                 is_self_closing: false,
-                children: vec![],
+                children: Vec::new(),
                 content: None,
             };
 

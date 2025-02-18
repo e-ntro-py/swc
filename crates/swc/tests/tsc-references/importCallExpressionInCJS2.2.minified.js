@@ -1,5 +1,4 @@
 //// [0.ts]
-"use strict";
 function foo() {
     return "foo";
 }
@@ -12,7 +11,6 @@ Object.defineProperty(exports, "__esModule", {
     }
 });
 //// [1.ts]
-"use strict";
 function backup() {
     return "backup";
 }
@@ -25,12 +23,11 @@ Object.defineProperty(exports, "__esModule", {
     }
 });
 //// [2.ts]
-"use strict";
 Object.defineProperty(exports, "__esModule", {
     value: !0
 });
 const _interop_require_wildcard = require("@swc/helpers/_/_interop_require_wildcard");
 !async function(promise) {
     let j = await promise;
-    j ? j.foo() : (j = await Promise.resolve().then(()=>_interop_require_wildcard._(require("./1")))).backup();
-}(Promise.resolve().then(()=>_interop_require_wildcard._(require("./0"))));
+    j ? j.foo() : (j = await Promise.resolve().then(()=>/*#__PURE__*/ _interop_require_wildcard._(require("./1")))).backup();
+}(Promise.resolve().then(()=>/*#__PURE__*/ _interop_require_wildcard._(require("./0"))));

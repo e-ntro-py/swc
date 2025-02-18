@@ -17,7 +17,6 @@ var D = function D() {
 var a;
 var r = a.a;
 // generic interfaces in a module
-var M;
 (function(M) {
     var C = function C() {
         "use strict";
@@ -32,3 +31,4 @@ var M;
         _class_call_check(this, D);
     };
 })(M || (M = {}));
+var M;

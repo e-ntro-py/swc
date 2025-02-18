@@ -143,7 +143,7 @@ pub struct ExportAllDeclaration {
     pub base: BaseNode,
     pub source: StringLiteral,
     #[serde(default)]
-    pub assertions: Option<Vec<ImportAttribute>>,
+    pub with: Option<Vec<ImportAttribute>>,
     #[serde(default)]
     pub export_kind: Option<ExportKind>,
 }
@@ -192,7 +192,7 @@ pub struct ExportNamedDeclaration {
     #[serde(default)]
     pub source: Option<StringLiteral>,
     #[serde(default)]
-    pub assertions: Option<Vec<ImportAttribute>>,
+    pub with: Option<Vec<ImportAttribute>>,
     #[serde(default)]
     pub export_kind: Option<ExportKind>,
 }
@@ -270,9 +270,10 @@ pub struct ImportDeclaration {
     pub specifiers: Vec<ImportSpecifierType>,
     pub source: StringLiteral,
     #[serde(default)]
-    pub assertions: Option<Vec<ImportAttribute>>,
+    pub with: Option<Vec<ImportAttribute>>,
     #[serde(default)]
     pub import_kind: Option<ImportKind>,
+    pub phase: Option<ImportPhase>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -282,4 +283,11 @@ pub enum ModuleExportNameType {
     Ident(Identifier),
     #[tag("StringLiteral")]
     Str(StringLiteral),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ImportPhase {
+    Source,
+    Defer,
 }

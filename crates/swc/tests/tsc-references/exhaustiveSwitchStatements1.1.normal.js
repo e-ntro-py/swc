@@ -3,9 +3,9 @@ function f1(x) {
     if (!!true) {
         switch(x){
             case 1:
-                return "a";
+                return 'a';
             case 2:
-                return "b";
+                return 'b';
         }
         x; // Unreachable
     } else {
@@ -35,26 +35,26 @@ function f3(x) {
             throw new Error("Bad input");
     }
 }
-var // Repro from #11572
-E;
-(function(E) {
+// Repro from #11572
+var E = /*#__PURE__*/ function(E) {
     E[E["A"] = 0] = "A";
     E[E["B"] = 1] = "B";
-})(E || (E = {}));
+    return E;
+}(E || {});
 function f(e) {
     switch(e){
-        case E.A:
+        case 0:
             return 0;
-        case E.B:
+        case 1:
             return 1;
     }
 }
 function g(e) {
     if (!true) return -1;
     else switch(e){
-        case E.A:
+        case 0:
             return 0;
-        case E.B:
+        case 1:
             return 1;
     }
 }
@@ -92,19 +92,19 @@ function areaWrapped(s) {
     }();
     return area;
 }
-var // Repro from #13241
-MyEnum;
-(function(MyEnum) {
+// Repro from #13241
+var MyEnum = /*#__PURE__*/ function(MyEnum) {
     MyEnum[MyEnum["A"] = 0] = "A";
     MyEnum[MyEnum["B"] = 1] = "B";
-})(MyEnum || (MyEnum = {}));
+    return MyEnum;
+}(MyEnum || {});
 function thisGivesError(e) {
     var s;
     switch(e){
-        case MyEnum.A:
+        case 0:
             s = "it was A";
             break;
-        case MyEnum.B:
+        case 1:
             s = "it was B";
             break;
     }
@@ -113,10 +113,10 @@ function thisGivesError(e) {
 function good1(e) {
     var s;
     switch(e){
-        case MyEnum.A:
+        case 0:
             s = "it was A";
             break;
-        case MyEnum.B:
+        case 1:
             s = "it was B";
             break;
         default:
@@ -127,26 +127,26 @@ function good1(e) {
 }
 function good2(e) {
     switch(e){
-        case MyEnum.A:
+        case 0:
             return "it was A";
-        case MyEnum.B:
+        case 1:
             return "it was B";
     }
 }
-var // Repro from #18362
-Level;
-(function(Level) {
+// Repro from #18362
+var Level = /*#__PURE__*/ function(Level) {
     Level[Level["One"] = 0] = "One";
     Level[Level["Two"] = 1] = "Two";
-})(Level || (Level = {}));
+    return Level;
+}(Level || {});
 var doSomethingWithLevel = function(level) {
     var next;
     switch(level){
-        case Level.One:
-            next = Level.Two;
+        case 0:
+            next = 1;
             break;
-        case Level.Two:
-            next = Level.One;
+        case 1:
+            next = 0;
             break;
     }
     return next;
@@ -192,20 +192,20 @@ function test4(value) {
     }
     return x;
 }
-var // Repro from #34661
-Animal;
-(function(Animal) {
+// Repro from #34661
+var Animal = /*#__PURE__*/ function(Animal) {
     Animal[Animal["DOG"] = 0] = "DOG";
     Animal[Animal["CAT"] = 1] = "CAT";
-})(Animal || (Animal = {}));
+    return Animal;
+}(Animal || {});
 function expression() {
     var _zoo;
     var _zoo_animal;
-    switch((_zoo_animal = (_zoo = zoo) === null || _zoo === void 0 ? void 0 : _zoo.animal) !== null && _zoo_animal !== void 0 ? _zoo_animal : Animal.DOG){
-        case Animal.DOG:
-            return Animal.DOG;
-        case Animal.CAT:
-            return Animal.CAT;
+    switch((_zoo_animal = (_zoo = zoo) === null || _zoo === void 0 ? void 0 : _zoo.animal) !== null && _zoo_animal !== void 0 ? _zoo_animal : 0){
+        case 0:
+            return 0;
+        case 1:
+            return 1;
     }
 }
 // Repro from #34840
@@ -223,10 +223,10 @@ function foo() {
 }
 function ff(o, k) {
     switch(k){
-        case "c":
-            k = "a";
+        case 'c':
+            k = 'a';
     }
-    k === "c"; // Error
+    k === 'c'; // Error
     return o[k];
 }
 function f35431(a) {

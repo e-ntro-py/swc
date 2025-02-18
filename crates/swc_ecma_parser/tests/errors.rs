@@ -40,14 +40,14 @@ where
         .unwrap_or_default();
 
     let syntax = if is_ts {
-        ::swc_ecma_parser::Syntax::Typescript(::swc_ecma_parser::TsConfig {
+        ::swc_ecma_parser::Syntax::Typescript(::swc_ecma_parser::TsSyntax {
             tsx: is_jsx,
             ..Default::default()
         })
     } else {
-        ::swc_ecma_parser::Syntax::Es(::swc_ecma_parser::EsConfig {
+        ::swc_ecma_parser::Syntax::Es(::swc_ecma_parser::EsSyntax {
             jsx: is_jsx,
-            using_decl: true,
+            explicit_resource_management: true,
             ..Default::default()
         })
     };

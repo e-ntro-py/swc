@@ -16,34 +16,28 @@ class Foo {
         this.value = v;
     }
     constructor(){
-        _define_property(this, "value", 1);
-        _initProto(this);
+        _define_property(this, "value", (_initProto(this), 1));
     }
 }
-var __ = {
-    writable: true,
-    value: (()=>{
-        ({ e: [_initProto]  } = _apply_decs_2203_r(Foo, [
-            [
-                dec,
-                3,
-                "a"
-            ],
-            [
-                dec,
-                4,
-                "a"
-            ],
-            [
-                dec,
-                3,
-                _computedKey
-            ],
-            [
-                dec,
-                4,
-                _computedKey1
-            ]
-        ], []));
-    })()
-};
+({ e: [_initProto] } = _apply_decs_2203_r(Foo, [
+    [
+        dec,
+        3,
+        "a"
+    ],
+    [
+        dec,
+        4,
+        "a"
+    ],
+    [
+        dec,
+        3,
+        _computedKey
+    ],
+    [
+        dec,
+        4,
+        _computedKey1
+    ]
+], []));

@@ -2,10 +2,9 @@
 
 extern crate proc_macro;
 
-use pmutil::{smart_quote, Quote};
 use quote::quote_spanned;
 use swc_macros_common::prelude::*;
-use syn::{self, *};
+use syn::{parse::Parse, *};
 
 /// Creates `.as_str()` and then implements `Debug` and `Display` using it.
 ///
@@ -86,24 +85,18 @@ pub fn derive_string_enum(input: proc_macro::TokenStream) -> proc_macro::TokenSt
 }
 
 fn derive_fmt(i: &DeriveInput, trait_path: TokenStream) -> ItemImpl {
-    Quote::new(def_site::<Span>())
-        .quote_with(smart_quote!(
-            Vars {
-                Trait: trait_path,
-                Type: &i.ident,
-                as_str: make_as_str_ident(),
-            },
-            {
-                impl Trait for Type {
-                    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                        let s = self.as_str();
-                        Trait::fmt(s, f)
-                    }
-                }
+    let ty = &i.ident;
+
+    let item: ItemImpl = parse_quote!(
+        impl #trait_path for #ty {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                let s = self.as_str();
+                #trait_path::fmt(s, f)
             }
-        ))
-        .parse::<ItemImpl>()
-        .with_generics(i.generics.clone())
+        }
+    );
+
+    item.with_generics(i.generics.clone())
 }
 
 fn get_str_value(attrs: &[Attribute]) -> String {
@@ -132,60 +125,45 @@ fn make_from_str(i: &DeriveInput) -> ItemImpl {
 
             let str_value = get_str_value(v.attrs());
 
-            let mut pat: Pat = Quote::new(def_site::<Span>())
-                .quote_with(smart_quote!(Vars { str_value }, { str_value }))
-                .parse();
+            let mut pat: Pat = Pat::Lit(ExprLit {
+                attrs: Default::default(),
+                lit: Lit::Str(LitStr::new(&str_value, Span::call_site())),
+            });
 
             // Handle `string_enum(alias("foo"))`
-            'outer: for attr in v
+            for attr in v
                 .attrs()
                 .iter()
                 .filter(|attr| is_attr_name(attr, "string_enum"))
             {
-                let meta = attr.parse_meta().expect("failed to parse meta");
-                if let Meta::List(meta) = &meta {
-                    for meta in &meta.nested {
-                        //
-                        if let NestedMeta::Meta(Meta::List(meta)) = meta {
-                            if meta.path.is_ident("alias") {
-                                let mut cases = Punctuated::default();
+                if let Meta::List(meta) = &attr.meta {
+                    let mut cases = Punctuated::default();
 
-                                cases.push(pat);
+                    cases.push(pat);
 
-                                for lit in &meta.nested {
-                                    cases.push(Pat::Lit(PatLit {
-                                        attrs: Default::default(),
-                                        expr: Box::new(Expr::Lit(ExprLit {
-                                            attrs: Default::default(),
-                                            lit: match lit {
-                                                NestedMeta::Meta(_) => todo!(),
-                                                NestedMeta::Lit(v) => v.clone(),
-                                            },
-                                        })),
-                                    }))
-                                }
-
-                                pat = Pat::Or(PatOr {
-                                    attrs: Default::default(),
-                                    leading_vert: None,
-                                    cases,
-                                });
-
-                                continue 'outer;
-                            }
-                        }
+                    for item in parse2::<FieldAttr>(meta.tokens.clone())
+                        .expect("failed to parse `#[string_enum]`")
+                        .aliases
+                    {
+                        cases.push(Pat::Lit(PatLit {
+                            attrs: Default::default(),
+                            lit: Lit::Str(item.alias),
+                        }));
                     }
+
+                    pat = Pat::Or(PatOr {
+                        attrs: Default::default(),
+                        leading_vert: None,
+                        cases,
+                    });
+                    continue;
                 }
 
-                panic!("Unsupported meta: {:#?}", meta);
+                panic!("Unsupported meta: {:#?}", attr.meta);
             }
 
             let body = match *v.data() {
-                Fields::Unit => Box::new(
-                    Quote::new(def_site::<Span>())
-                        .quote_with(smart_quote!(Vars { qual_name }, { return Ok(qual_name) }))
-                        .parse(),
-                ),
+                Fields::Unit => Box::new(parse_quote!(return Ok(#qual_name))),
                 _ => unreachable!("StringEnum requires all variants not to have fields"),
             };
 
@@ -199,49 +177,32 @@ fn make_from_str(i: &DeriveInput) -> ItemImpl {
                     .collect(),
                 pat,
                 guard: None,
-                fat_arrow_token: def_site(),
-                comma: Some(def_site()),
+                fat_arrow_token: Default::default(),
+                comma: Some(Token![,](def_site())),
             }
         })
-        .chain(::std::iter::once({
-            Quote::new_call_site()
-                .quote_with(smart_quote!(Vars{}, {
-                    _ => Err(())
-                }))
-                .parse()
-        }))
+        .chain(::std::iter::once(parse_quote!(_ => Err(()))))
         .collect();
 
     let body = Expr::Match(ExprMatch {
         attrs: Default::default(),
-        match_token: def_site(),
-        brace_token: def_site(),
-        expr: Box::new(
-            Quote::new_call_site()
-                .quote_with(smart_quote!(Vars {}, { s }))
-                .parse(),
-        ),
+        match_token: Default::default(),
+        brace_token: Default::default(),
+        expr: Box::new(parse_quote!(s)),
         arms,
     });
 
-    Quote::new_call_site()
-        .quote_with(smart_quote!(
-            Vars {
-                Type: &i.ident,
-                body,
-            },
-            {
-                impl ::std::str::FromStr for Type {
-                    type Err = ();
+    let ty = &i.ident;
+    let item: ItemImpl = parse_quote!(
+        impl ::std::str::FromStr for #ty {
+            type Err = ();
 
-                    fn from_str(s: &str) -> Result<Self, ()> {
-                        body
-                    }
-                }
+            fn from_str(s: &str) -> Result<Self, ()> {
+                #body
             }
-        ))
-        .parse::<ItemImpl>()
-        .with_generics(i.generics.clone())
+        }
+    );
+    item.with_generics(i.generics.clone())
 }
 
 fn make_as_str(i: &DeriveInput) -> ItemImpl {
@@ -254,11 +215,7 @@ fn make_as_str(i: &DeriveInput) -> ItemImpl {
 
             let str_value = get_str_value(v.attrs());
 
-            let body = Box::new(
-                Quote::new(def_site::<Span>())
-                    .quote_with(smart_quote!(Vars { str_value }, { return str_value }))
-                    .parse(),
-            );
+            let body = Box::new(parse_quote!(return #str_value));
 
             let pat = match *v.data() {
                 Fields::Unit => Box::new(Pat::Path(PatPath {
@@ -266,11 +223,17 @@ fn make_as_str(i: &DeriveInput) -> ItemImpl {
                     path: qual_name,
                     attrs: Default::default(),
                 })),
-                _ => Box::new(
-                    Quote::new(def_site::<Span>())
-                        .quote_with(smart_quote!(Vars { qual_name }, { qual_name { .. } }))
-                        .parse(),
-                ),
+                _ => Box::new(Pat::Struct(PatStruct {
+                    attrs: Default::default(),
+                    qself: None,
+                    path: qual_name,
+                    brace_token: Default::default(),
+                    fields: Default::default(),
+                    rest: Some(PatRest {
+                        attrs: Default::default(),
+                        dot2_token: Default::default(),
+                    }),
+                })),
             };
 
             Arm {
@@ -282,47 +245,37 @@ fn make_as_str(i: &DeriveInput) -> ItemImpl {
                     .cloned()
                     .collect(),
                 pat: Pat::Reference(PatReference {
-                    and_token: def_site(),
+                    and_token: Default::default(),
                     mutability: None,
                     pat,
                     attrs: Default::default(),
                 }),
                 guard: None,
-                fat_arrow_token: def_site(),
-                comma: Some(def_site()),
+                fat_arrow_token: Default::default(),
+                comma: Some(Token![,](def_site())),
             }
         })
         .collect();
 
     let body = Expr::Match(ExprMatch {
         attrs: Default::default(),
-        match_token: def_site(),
-        brace_token: def_site(),
-        expr: Box::new(
-            Quote::new(def_site::<Span>())
-                .quote_with(smart_quote!(Vars {}, { self }))
-                .parse(),
-        ),
+        match_token: Default::default(),
+        brace_token: Default::default(),
+        expr: Box::new(parse_quote!(self)),
         arms,
     });
 
-    Quote::new(def_site::<Span>())
-        .quote_with(smart_quote!(
-            Vars {
-                Type: &i.ident,
-                body,
-                as_str: make_as_str_ident(),
-            },
-            {
-                impl Type {
-                    pub fn as_str(&self) -> &'static str {
-                        body
-                    }
-                }
+    let ty = &i.ident;
+    let as_str = make_as_str_ident();
+    let item: ItemImpl = parse_quote!(
+        impl #ty {
+            pub fn #as_str(&self) -> &'static str {
+                #body
             }
-        ))
-        .parse::<ItemImpl>()
-        .with_generics(i.generics.clone())
+        }
+    );
+
+    item.with_generics(i.generics.clone())
 }
 
 fn make_as_str_ident() -> Ident {
@@ -330,54 +283,89 @@ fn make_as_str_ident() -> Ident {
 }
 
 fn make_serialize(i: &DeriveInput) -> ItemImpl {
-    Quote::new_call_site()
-        .quote_with(smart_quote!(Vars { Type: &i.ident }, {
-            #[cfg(feature = "serde")]
-            impl ::serde::Serialize for Type {
-                fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-                where
-                    S: ::serde::Serializer,
-                {
-                    serializer.serialize_str(self.as_str())
-                }
+    let ty = &i.ident;
+    let item: ItemImpl = parse_quote!(
+        #[cfg(feature = "serde")]
+        impl ::serde::Serialize for #ty {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: ::serde::Serializer,
+            {
+                serializer.serialize_str(self.as_str())
             }
-        }))
-        .parse::<ItemImpl>()
-        .with_generics(i.generics.clone())
+        }
+    );
+
+    item.with_generics(i.generics.clone())
 }
 
 fn make_deserialize(i: &DeriveInput) -> ItemImpl {
-    Quote::new_call_site()
-        .quote_with(smart_quote!(Vars { Type: &i.ident }, {
-            #[cfg(feature = "serde")]
-            impl<'de> ::serde::Deserialize<'de> for Type {
-                fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-                where
-                    D: ::serde::Deserializer<'de>,
-                {
-                    struct StrVisitor;
+    let ty = &i.ident;
+    let item: ItemImpl = parse_quote!(
+        #[cfg(feature = "serde")]
+        impl<'de> ::serde::Deserialize<'de> for #ty {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: ::serde::Deserializer<'de>,
+            {
+                struct StrVisitor;
 
-                    impl<'de> ::serde::de::Visitor<'de> for StrVisitor {
-                        type Value = Type;
+                impl<'de> ::serde::de::Visitor<'de> for StrVisitor {
+                    type Value = #ty;
 
-                        fn expecting(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                            // TODO: List strings
-                            write!(f, "one of (TODO)")
-                        }
-
-                        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-                        where
-                            E: ::serde::de::Error,
-                        {
-                            // TODO
-                            value.parse().map_err(|()| E::unknown_variant(value, &[]))
-                        }
+                    fn expecting(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                        // TODO: List strings
+                        write!(f, "one of (TODO)")
                     }
 
-                    deserializer.deserialize_str(StrVisitor)
+                    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+                    where
+                        E: ::serde::de::Error,
+                    {
+                        // TODO
+                        value.parse().map_err(|()| E::unknown_variant(value, &[]))
+                    }
                 }
+
+                deserializer.deserialize_str(StrVisitor)
             }
-        }))
-        .parse::<ItemImpl>()
-        .with_generics(i.generics.clone())
+        }
+    );
+
+    item.with_generics(i.generics.clone())
+}
+
+struct FieldAttr {
+    aliases: Punctuated<FieldAttrItem, Token![,]>,
+}
+
+impl Parse for FieldAttr {
+    fn parse(input: parse::ParseStream) -> Result<Self> {
+        Ok(Self {
+            aliases: input.call(Punctuated::parse_terminated)?,
+        })
+    }
+}
+
+/// `alias("text")` in `#[string_enum(alias("text"))]`.
+struct FieldAttrItem {
+    alias: LitStr,
+}
+
+impl Parse for FieldAttrItem {
+    fn parse(input: parse::ParseStream) -> Result<Self> {
+        let name: Ident = input.parse()?;
+
+        assert!(
+            name == "alias",
+            "#[derive(StringEnum) only supports `#[string_enum(alias(\"text\"))]]"
+        );
+
+        let alias;
+        parenthesized!(alias in input);
+
+        Ok(Self {
+            alias: alias.parse()?,
+        })
+    }
 }

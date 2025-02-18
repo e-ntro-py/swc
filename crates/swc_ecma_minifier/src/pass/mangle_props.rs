@@ -1,28 +1,28 @@
 use std::collections::HashSet;
 
 use once_cell::sync::Lazy;
-use swc_atoms::{js_word, JsWord};
-use swc_common::collections::{AHashMap, AHashSet};
+use rustc_hash::{FxHashMap, FxHashSet};
+use swc_atoms::JsWord;
 use swc_ecma_ast::{
-    CallExpr, Callee, Expr, Ident, KeyValueProp, Lit, MemberExpr, MemberProp, Program, Prop,
+    CallExpr, Callee, Expr, IdentName, KeyValueProp, Lit, MemberExpr, MemberProp, Program, Prop,
     PropName, Str, SuperProp, SuperPropExpr,
 };
 use swc_ecma_visit::{noop_visit_mut_type, VisitMut, VisitMutWith};
 
 use crate::{
     option::ManglePropertiesOptions,
-    program_data::{analyze, ModuleInfo, ProgramData},
+    program_data::{analyze, ProgramData},
     util::base54::Base54Chars,
 };
 
-pub static JS_ENVIRONMENT_PROPS: Lazy<AHashSet<JsWord>> = Lazy::new(|| {
+pub static JS_ENVIRONMENT_PROPS: Lazy<FxHashSet<JsWord>> = Lazy::new(|| {
     let domprops: Vec<JsWord> = serde_json::from_str(include_str!("../lists/domprops.json"))
         .expect("failed to parse domprops.json for property mangler");
 
     let jsprops: Vec<JsWord> = serde_json::from_str(include_str!("../lists/jsprops.json"))
         .expect("Failed to parse jsprops.json for property mangler");
 
-    let mut word_set: AHashSet<JsWord> = HashSet::default();
+    let mut word_set: FxHashSet<JsWord> = HashSet::default();
 
     for name in domprops.iter().chain(jsprops.iter()) {
         word_set.insert(name.clone());
@@ -35,11 +35,11 @@ struct ManglePropertiesState {
     chars: Base54Chars,
     options: ManglePropertiesOptions,
 
-    names_to_mangle: AHashSet<JsWord>,
-    unmangleable: AHashSet<JsWord>,
+    names_to_mangle: FxHashSet<JsWord>,
+    unmangleable: FxHashSet<JsWord>,
 
     // Cache of already mangled names
-    cache: AHashMap<JsWord, JsWord>,
+    cache: FxHashMap<JsWord, JsWord>,
 
     // Numbers to pass to base54()
     n: usize,
@@ -98,7 +98,6 @@ impl ManglePropertiesState {
 
 pub(crate) fn mangle_properties(
     m: &mut Program,
-    module_info: &ModuleInfo,
     options: ManglePropertiesOptions,
     chars: Base54Chars,
 ) {
@@ -111,7 +110,7 @@ pub(crate) fn mangle_properties(
         n: 0,
     };
 
-    let data = analyze(&*m, module_info, None);
+    let data = analyze(&*m, None);
     m.visit_mut_with(&mut PropertyCollector {
         state: &mut state,
         data,
@@ -189,14 +188,10 @@ fn is_object_property_call(call: &CallExpr) -> bool {
         match &**callee {
             Expr::Member(MemberExpr {
                 obj,
-                prop: MemberProp::Ident(Ident { sym, .. }),
+                prop: MemberProp::Ident(IdentName { sym, .. }),
                 ..
             }) if *sym == *"defineProperty" => {
-                if let Expr::Ident(Ident {
-                    sym: js_word!("Object"),
-                    ..
-                }) = &**obj
-                {
+                if obj.is_ident_ref_to("Object") {
                     return true;
                 }
             }
@@ -228,7 +223,7 @@ struct Mangler<'a> {
 }
 
 impl Mangler<'_> {
-    fn mangle_ident(&mut self, ident: &mut Ident) {
+    fn mangle_ident(&mut self, ident: &mut IdentName) {
         if let Some(mangled) = self.state.gen_name(&ident.sym) {
             ident.sym = mangled;
         }
@@ -265,13 +260,13 @@ impl VisitMut for Mangler<'_> {
         prop.visit_mut_children_with(self);
 
         if let Prop::Shorthand(ident) = prop {
-            let mut new_ident = ident.clone();
+            let mut new_ident = IdentName::from(ident.clone());
 
             self.mangle_ident(&mut new_ident);
 
             *prop = Prop::KeyValue(KeyValueProp {
                 key: PropName::Ident(new_ident),
-                value: Box::new(Expr::Ident(ident.clone())),
+                value: ident.clone().into(),
             });
         }
     }

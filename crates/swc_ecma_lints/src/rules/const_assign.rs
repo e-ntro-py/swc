@@ -1,22 +1,73 @@
-use swc_common::{collections::AHashMap, errors::HANDLER, Span};
+use rustc_hash::FxHashMap;
+use swc_common::{errors::HANDLER, Span};
 use swc_ecma_ast::*;
+use swc_ecma_utils::parallel::{cpu_count, Parallel, ParallelExt};
 use swc_ecma_visit::{noop_visit_type, Visit, VisitWith};
 
-use crate::rule::{visitor_rule, Rule};
+use crate::rule::Rule;
 
 pub fn const_assign() -> Box<dyn Rule> {
-    visitor_rule(ConstAssign::default())
+    Box::new(ConstAssignRule)
 }
 
-#[derive(Debug, Default)]
-struct ConstAssign {
-    const_vars: AHashMap<Id, Span>,
-    import_binding: AHashMap<Id, Span>,
+#[derive(Debug)]
+struct ConstAssignRule;
+
+impl Rule for ConstAssignRule {
+    fn lint_module(&mut self, program: &Module) {
+        let mut const_vars = FxHashMap::default();
+        let mut import_binding = FxHashMap::default();
+
+        program.visit_children_with(&mut Collector {
+            const_vars: &mut const_vars,
+            import_binding: &mut import_binding,
+            var_decl_kind: None,
+        });
+
+        program.visit_children_with(&mut ConstAssign {
+            const_vars: &const_vars,
+            import_binding: &import_binding,
+            is_pat_decl: false,
+        });
+    }
+
+    fn lint_script(&mut self, program: &Script) {
+        let mut const_vars = FxHashMap::default();
+        let mut import_binding = FxHashMap::default();
+
+        program.visit_children_with(&mut Collector {
+            const_vars: &mut const_vars,
+            // I don't believe that import stmt exists in Script
+            // But it's ok. Let's pass it in.
+            import_binding: &mut import_binding,
+            var_decl_kind: None,
+        });
+
+        program.visit_children_with(&mut ConstAssign {
+            const_vars: &const_vars,
+            import_binding: &import_binding,
+            is_pat_decl: false,
+        });
+    }
+}
+
+#[derive(Clone, Copy)]
+struct ConstAssign<'a> {
+    const_vars: &'a FxHashMap<Id, Span>,
+    import_binding: &'a FxHashMap<Id, Span>,
 
     is_pat_decl: bool,
 }
 
-impl ConstAssign {
+impl Parallel for ConstAssign<'_> {
+    fn create(&self) -> Self {
+        *self
+    }
+
+    fn merge(&mut self, _: Self) {}
+}
+
+impl ConstAssign<'_> {
     fn check(&mut self, id: &Ident) {
         if self.is_pat_decl {
             return;
@@ -51,41 +102,53 @@ impl ConstAssign {
     }
 }
 
-impl Visit for ConstAssign {
+impl Visit for ConstAssign<'_> {
     noop_visit_type!();
 
-    fn visit_assign_pat_prop(&mut self, p: &AssignPatProp) {
-        p.visit_children_with(self);
-
-        self.check(&p.key);
+    fn visit_binding_ident(&mut self, n: &BindingIdent) {
+        self.check(&Ident::from(n));
     }
 
-    fn visit_module(&mut self, program: &Module) {
-        program.visit_children_with(&mut Collector {
-            const_vars: &mut self.const_vars,
-            import_binding: &mut self.import_binding,
-            var_decl_kind: None,
+    fn visit_class_members(&mut self, members: &[ClassMember]) {
+        self.maybe_par(cpu_count(), members, |v, member| {
+            member.visit_with(v);
         });
-
-        program.visit_children_with(self);
     }
 
-    fn visit_pat(&mut self, p: &Pat) {
-        p.visit_children_with(self);
-
-        if let Pat::Ident(p) = p {
-            self.check(&p.id);
-        }
+    fn visit_expr_or_spreads(&mut self, n: &[ExprOrSpread]) {
+        self.maybe_par(cpu_count(), n, |v, n| {
+            n.visit_with(v);
+        });
     }
 
-    fn visit_assign_expr(&mut self, n: &AssignExpr) {
-        n.visit_children_with(self);
+    fn visit_exprs(&mut self, exprs: &[Box<Expr>]) {
+        self.maybe_par(cpu_count(), exprs, |v, expr| {
+            expr.visit_with(v);
+        });
+    }
 
-        if let PatOrExpr::Expr(left) = &n.left {
-            if let Expr::Ident(ident) = &**left {
-                self.check(ident);
-            }
-        }
+    fn visit_module_items(&mut self, items: &[ModuleItem]) {
+        self.maybe_par(cpu_count(), items, |v, item| {
+            item.visit_with(v);
+        });
+    }
+
+    fn visit_opt_vec_expr_or_spreads(&mut self, n: &[Option<ExprOrSpread>]) {
+        self.maybe_par(cpu_count(), n, |v, n| {
+            n.visit_with(v);
+        });
+    }
+
+    fn visit_prop_or_spreads(&mut self, n: &[PropOrSpread]) {
+        self.maybe_par(cpu_count(), n, |v, n| {
+            n.visit_with(v);
+        });
+    }
+
+    fn visit_stmts(&mut self, stmts: &[Stmt]) {
+        self.maybe_par(cpu_count(), stmts, |v, stmt| {
+            stmt.visit_with(v);
+        });
     }
 
     fn visit_update_expr(&mut self, n: &UpdateExpr) {
@@ -94,18 +157,6 @@ impl Visit for ConstAssign {
         if let Expr::Ident(ident) = &*n.arg {
             self.check(ident);
         }
-    }
-
-    fn visit_script(&mut self, program: &Script) {
-        program.visit_children_with(&mut Collector {
-            const_vars: &mut self.const_vars,
-            // I don't believe that import stmt exists in Script
-            // But it's ok. Let's pass it in.
-            import_binding: &mut self.import_binding,
-            var_decl_kind: None,
-        });
-
-        program.visit_children_with(self);
     }
 
     fn visit_var_declarator(&mut self, var_declarator: &VarDeclarator) {
@@ -119,8 +170,8 @@ impl Visit for ConstAssign {
 }
 
 struct Collector<'a> {
-    const_vars: &'a mut AHashMap<Id, Span>,
-    import_binding: &'a mut AHashMap<Id, Span>,
+    const_vars: &'a mut FxHashMap<Id, Span>,
+    import_binding: &'a mut FxHashMap<Id, Span>,
 
     var_decl_kind: Option<VarDeclKind>,
 }
@@ -160,7 +211,7 @@ impl Visit for Collector<'_> {
 
         if let Some(VarDeclKind::Const) = self.var_decl_kind {
             if let Pat::Ident(i) = p {
-                *self.const_vars.entry(i.to_id()).or_default() = i.id.span;
+                *self.const_vars.entry(i.to_id()).or_default() = i.span;
             }
         }
     }

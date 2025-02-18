@@ -2,21 +2,21 @@
 
 extern crate proc_macro;
 
-use pmutil::{smart_quote, Quote, ToTokensExt};
-use syn::{FnArg, ImplItemMethod, Type, TypeReference};
+use quote::ToTokens;
+use syn::{parse_quote, FnArg, ImplItemFn, Type, TypeReference};
 
 #[proc_macro_attribute]
 pub fn emitter(
     _attr: proc_macro::TokenStream,
     item: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
-    let item: ImplItemMethod = syn::parse(item).expect("failed to parse input as an item");
+    let item: ImplItemFn = syn::parse(item).expect("failed to parse input as an item");
     let item = expand(item);
 
-    item.dump().into()
+    item.into_token_stream().into()
 }
 
-fn expand(i: ImplItemMethod) -> ImplItemMethod {
+fn expand(i: ImplItemFn) -> ImplItemFn {
     let mtd_name = i.sig.ident.clone();
     assert!(
         format!("{}", i.sig.ident).starts_with("emit_"),
@@ -39,7 +39,7 @@ fn expand(i: ImplItemMethod) -> ImplItemMethod {
                         Type::Reference(TypeReference { elem, .. }) => *elem,
                         _ => panic!(
                             "Type of node parameter should be reference but got {}",
-                            ty.dump()
+                            ty.into_token_stream()
                         ),
                     }
                 })
@@ -50,37 +50,26 @@ fn (&mut self, node: Node) -> Result;
                 )
         };
 
-        Quote::new_call_site()
-            .quote_with(smart_quote!(
-                Vars {
-                    block: &i.block,
-                    NodeType: &node_type,
-                    mtd_name,
-                },
-                {
-                    {
-                        impl<W> crate::Emit<NodeType> for crate::CodeGenerator<'_, W>
-                        where
-                            W: crate::writer::XmlWriter,
-                        {
-                            fn emit(&mut self, n: &NodeType) -> crate::Result {
-                                self.mtd_name(n)
-                            }
-                        }
-
-                        block
-
-                        // Emitter methods return Result<_, _>
-                        // We inject this to avoid writing Ok(()) every time.
-                        #[allow(unreachable_code)]
-                        {
-                            return Ok(());
-                        }
-                    }
+        let block = &i.block;
+        parse_quote!({
+            impl<W> crate::Emit<#node_type> for crate::CodeGenerator<'_, W>
+                where W: crate::writer::XmlWriter,
+            {
+                fn emit(&mut self, n: &#node_type) -> crate::Result {
+                    self.#mtd_name(n)
                 }
-            ))
-            .parse()
+            }
+
+            #block
+
+            // Emitter methods return Result<_, _>
+            // We inject this to avoid writing Ok(()) every time.
+            #[allow(unreachable_code)]
+            {
+                return Ok(());
+            }
+        })
     };
 
-    ImplItemMethod { block, ..i }
+    ImplItemFn { block, ..i }
 }

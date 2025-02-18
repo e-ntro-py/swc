@@ -16,16 +16,15 @@
             }
         },
         "paths": {
-            "@moduleA/*": ["modules/01-moduleA/*"],
-            "@moduleB/*": ["modules/03-moduleB/*"]
+            "@moduleA/*": [
+                "modules/01-moduleA/*"
+            ],
+            "@moduleB/*": [
+                "modules/02-moduleB/*"
+            ]
         }
     },
     "module": {
-        "type": "es6",
-        "strict": false,
-        "strictMode": true,
-        "lazy": false,
-        "noInterop": false,
-        "ignoreDynamic": true
+        "type": "es6"
     }
 }

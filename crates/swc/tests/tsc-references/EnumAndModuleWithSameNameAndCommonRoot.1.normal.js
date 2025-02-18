@@ -1,10 +1,10 @@
 //// [EnumAndModuleWithSameNameAndCommonRoot.ts]
 import { _ as _class_call_check } from "@swc/helpers/_/_class_call_check";
-var enumdule;
-(function(enumdule) {
+var enumdule = /*#__PURE__*/ function(enumdule) {
     enumdule[enumdule["Red"] = 0] = "Red";
     enumdule[enumdule["Blue"] = 1] = "Blue";
-})(enumdule || (enumdule = {}));
+    return enumdule;
+}(enumdule || {});
 (function(enumdule) {
     var Point = function Point(x, y) {
         "use strict";
@@ -15,6 +15,6 @@ var enumdule;
     enumdule.Point = Point;
 })(enumdule || (enumdule = {}));
 var x;
-var x = enumdule.Red;
+var x = 0;
 var y;
 var y = new enumdule.Point(0, 0);

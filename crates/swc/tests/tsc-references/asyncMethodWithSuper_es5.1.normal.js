@@ -1,11 +1,11 @@
 //// [asyncMethodWithSuper_es5.ts]
 import { _ as _async_to_generator } from "@swc/helpers/_/_async_to_generator";
+import { _ as _call_super } from "@swc/helpers/_/_call_super";
 import { _ as _class_call_check } from "@swc/helpers/_/_class_call_check";
 import { _ as _get } from "@swc/helpers/_/_get";
 import { _ as _get_prototype_of } from "@swc/helpers/_/_get_prototype_of";
 import { _ as _inherits } from "@swc/helpers/_/_inherits";
 import { _ as _set } from "@swc/helpers/_/_set";
-import { _ as _create_super } from "@swc/helpers/_/_create_super";
 import { _ as _ts_generator } from "@swc/helpers/_/_ts_generator";
 var A = /*#__PURE__*/ function() {
     "use strict";
@@ -20,10 +20,9 @@ var A = /*#__PURE__*/ function() {
 var B = /*#__PURE__*/ function(A) {
     "use strict";
     _inherits(B, A);
-    var _super = _create_super(B);
     function B() {
         _class_call_check(this, B);
-        return _super.apply(this, arguments);
+        return _call_super(this, B, arguments);
     }
     var _proto = B.prototype;
     // async method with only call/get on 'super' does not require a binding
@@ -45,7 +44,9 @@ var B = /*#__PURE__*/ function(A) {
                 _superprop_get_y().call(_this1);
                 // call with element access
                 _superprop_get("x").call(_this1);
+                // property access (read)
                 a = _superprop_get_x();
+                // element access (read)
                 b = _superprop_get("x");
                 return [
                     2
@@ -89,7 +90,9 @@ var B = /*#__PURE__*/ function(A) {
                 _superprop_get_x().call(_this1);
                 // call with element access
                 _superprop_get("x").call(_this1);
+                // property access (read)
                 a = _superprop_get_x();
+                // element access (read)
                 b = _superprop_get("x");
                 // property access (assign)
                 _superprop_set_x(f);

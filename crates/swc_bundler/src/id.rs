@@ -3,8 +3,9 @@ use std::{
     sync::atomic::{AtomicU32, Ordering::SeqCst},
 };
 
+use rustc_hash::FxHashMap;
 use swc_atoms::JsWord;
-use swc_common::{collections::AHashMap, sync::Lock, FileName, Mark, SyntaxContext, DUMMY_SP};
+use swc_common::{sync::Lock, FileName, Mark, SyntaxContext, DUMMY_SP};
 use swc_ecma_ast::{Expr, Ident};
 use swc_ecma_utils::ident::IdentLike;
 
@@ -28,7 +29,7 @@ impl fmt::Debug for ModuleId {
 pub(crate) struct ModuleIdGenerator {
     v: AtomicU32,
     /// `(module_id, local_mark, export_mark)`
-    cache: Lock<AHashMap<FileName, (ModuleId, Mark, Mark)>>,
+    cache: Lock<FxHashMap<FileName, (ModuleId, Mark, Mark)>>,
 }
 
 impl ModuleIdGenerator {
@@ -70,7 +71,7 @@ impl Id {
     }
 
     pub fn into_ident(self) -> Ident {
-        Ident::new(self.0, DUMMY_SP.with_ctxt(self.1))
+        Ident::new(self.0, DUMMY_SP, self.1)
     }
 
     pub fn with_ctxt(mut self, ctxt: SyntaxContext) -> Self {
@@ -95,19 +96,19 @@ impl IdentLike for Id {
 
 impl From<Ident> for Id {
     fn from(i: Ident) -> Self {
-        Id(i.sym, i.span.ctxt())
+        Id(i.sym, i.ctxt)
     }
 }
 
-impl<'a> From<&'a Ident> for Id {
+impl From<&Ident> for Id {
     fn from(i: &Ident) -> Self {
-        Id(i.sym.clone(), i.span.ctxt())
+        Id(i.sym.clone(), i.ctxt)
     }
 }
 
 impl PartialEq<Ident> for Id {
     fn eq(&self, other: &Ident) -> bool {
-        self.0 == other.sym && self.1 == other.span.ctxt()
+        self.0 == other.sym && self.1 == other.ctxt
     }
 }
 
@@ -127,6 +128,6 @@ impl From<Id> for Ident {
 impl From<Id> for Expr {
     #[inline]
     fn from(id: Id) -> Self {
-        Expr::Ident(id.into_ident())
+        id.into_ident().into()
     }
 }

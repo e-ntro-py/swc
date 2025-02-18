@@ -2,11 +2,11 @@
 authors       = ["강동윤 <kdy1997.dev@gmail.com>"]
 description   = "Ecmascript ast."
 documentation = "https://rustdoc.swc.rs/swc_ecma_ast/"
-edition       = "2021"
-license       = "Apache-2.0"
+edition       = { workspace = true }
+license       = { workspace = true }
 name          = "swc_ecma_ast"
-repository    = "https://github.com/swc-project/swc.git"
-version       = "0.106.2"
+repository    = { workspace = true }
+version       = "7.0.0"
 
   [package.metadata.docs.rs]
   all-features = true
@@ -18,34 +18,41 @@ bench = false
 [features]
 __rkyv = []
 default = []
-fuzzing = ["arbitrary", "swc_common/arbitrary"]
+fuzzing = ["arbitrary", "swc_atoms/arbitrary", "swc_common/arbitrary"]
 rkyv-impl = [
   "__rkyv",
   "rkyv",
   "bytecheck",
+  "rancor",
   "swc_atoms/rkyv-impl",
   "swc_common/rkyv-impl",
 ]
 serde-impl = ["serde"]
+shrink-to-fit = [
+  "dep:shrink-to-fit",
+  "swc_atoms/shrink-to-fit",
+  "swc_common/shrink-to-fit",
+]
+
 
 [dependencies]
-arbitrary = { version = "1", optional = true, features = ["derive"] }
-bitflags  = "2.1.0"
-# bytecheck version should be in sync with rkyv version. Do not bump individually.
-bytecheck = { version = "0.6.10", optional = true }
-is-macro = "0.2.1"
-num-bigint = { version = "0.4", features = ["serde"] }
-rkyv = { package = "rkyv", version = "=0.7.42", optional = true, features = [
-  "strict",
-  "validation",
-] }
-scoped-tls = "1.0.0"
-serde = { version = "1.0.133", features = ["derive"], optional = true }
-unicode-id = "0.3"
+arbitrary        = { workspace = true, features = ["derive"], optional = true }
+bitflags         = { workspace = true }
+bytecheck        = { workspace = true, optional = true }
+is-macro         = { workspace = true }
+num-bigint       = { workspace = true, features = ["serde"] }
+phf              = { workspace = true, features = ["macros"] }
+rancor           = { workspace = true, optional = true }
+rkyv             = { workspace = true, optional = true }
+scoped-tls       = { workspace = true }
+serde            = { workspace = true, features = ["derive"], optional = true }
+shrink-to-fit    = { workspace = true, optional = true }
+unicode-id-start = { workspace = true }
 
-string_enum = { version = "0.4.0", path = "../string_enum" }
-swc_atoms   = { version = "0.5.6", path = "../swc_atoms" }
-swc_common  = { version = "0.31.12", path = "../swc_common" }
+string_enum = { version = "1.0.0", path = "../string_enum" }
+swc_atoms   = { version = "4.0.0", path = "../swc_atoms" }
+swc_common  = { version = "7.0.0", path = "../swc_common" }
+swc_visit   = { version = "2.0.0", path = "../swc_visit" }
 
 [dev-dependencies]
-serde_json = "1"
+serde_json = { workspace = true }

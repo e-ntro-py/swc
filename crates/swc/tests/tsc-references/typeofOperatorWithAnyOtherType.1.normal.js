@@ -28,11 +28,7 @@ var A = /*#__PURE__*/ function() {
     };
     return A;
 }();
-var M;
-(function(M) {
-    var n;
-    M.n = n;
-})(M || (M = {}));
+(function(M) {})(M || (M = {}));
 var objA = new A();
 // any type var
 var ResultIsString1 = typeof ANY1 === "undefined" ? "undefined" : _type_of(ANY1);
@@ -79,3 +75,4 @@ z: _type_of(objA.a);
 z: _type_of(A.foo);
 z: _type_of(M.n);
 z: _type_of(obj1.x);
+var M;

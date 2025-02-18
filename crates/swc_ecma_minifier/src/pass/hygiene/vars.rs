@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use fxhash::{AHashMap, AHashSet};
+use fxhash::{FxHashMap, FxHashSet};
 use swc_atoms::JsWord;
 use swc_common::{SyntaxContext, DUMMY_SP};
 use swc_ecma_ast::*;
@@ -8,7 +8,7 @@ use swc_ecma_visit::{noop_visit_type, Node, Visit, VisitWith};
 
 #[derive(Default)]
 pub(super) struct All {
-    pub scopes: AHashMap<SyntaxContext, VarHygieneData>,
+    pub scopes: FxHashMap<SyntaxContext, VarHygieneData>,
 }
 
 pub(super) fn analyze<N>(node: &N) -> All
@@ -27,7 +27,7 @@ where
 
 #[derive(Debug, Default)]
 pub(super) struct VarHygieneData {
-    pub decls: AHashMap<JsWord, AHashSet<SyntaxContext>>,
+    pub decls: FxHashMap<JsWord, FxHashSet<SyntaxContext>>,
 }
 
 #[derive(Default)]
@@ -51,10 +51,7 @@ impl<'a> Scope<'a> {
 
         while let Some(scope) = cur {
             let mut w = scope.data.borrow_mut();
-            w.decls
-                .entry(i.sym.clone())
-                .or_default()
-                .insert(i.span.ctxt);
+            w.decls.entry(i.sym.clone()).or_default().insert(i.ctxt);
 
             cur = scope.parent;
         }
@@ -80,8 +77,8 @@ macro_rules! scoped {
             v.cur.data.into_inner()
         };
 
-        let old = $v.all.scopes.insert($n.span.ctxt, data);
-        debug_assert!(old.is_none(), "{:?}", $n.span.ctxt);
+        let old = $v.all.scopes.insert($n.ctxt, data);
+        debug_assert!(old.is_none(), "{:?}", $n.ctxt);
     };
 }
 

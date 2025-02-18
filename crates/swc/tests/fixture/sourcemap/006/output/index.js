@@ -1,11 +1,16 @@
-import { _ as _async_to_generator } from "@swc/helpers/_/_async_to_generator";
-import { _ as _ts_generator } from "@swc/helpers/_/_ts_generator";
-it("should compress avif smaller than webp and smaller than jpg", /*#__PURE__*/ _async_to_generator(function() {
+var _async_to_generator = require("@swc/helpers/_/_async_to_generator");
+var _ts_generator = require("@swc/helpers/_/_ts_generator");
+it("should compress avif smaller than webp and smaller than jpg", /*#__PURE__*/ _async_to_generator._(function() {
     var query, res1, res2, res3, avif, webp, jpeg;
-    return _ts_generator(this, function(_state) {
+    return _ts_generator._(this, function(_state) {
         switch(_state.label){
             case 0:
-                query = {
+                /**
+     *
+     * 'Foo bar baz'
+     *
+     * Return @
+     */ query = {
                     url: "/test.jpg",
                     w: w,
                     q: 75

@@ -3,11 +3,11 @@ use preset_env_base::{
     version::{should_enable, Version},
     BrowserData, Versions,
 };
+use rustc_hash::FxHashMap;
 use string_enum::StringEnum;
-use swc_common::collections::AHashMap;
 
 impl Feature {
-    pub fn should_enable(self, target: Versions, bugfixes: bool, default: bool) -> bool {
+    pub fn should_enable(self, target: &Versions, bugfixes: bool, default: bool) -> bool {
         let f = if bugfixes {
             &BUGFIX_FEATURES[&self]
         } else {
@@ -17,11 +17,12 @@ impl Feature {
             &FEATURES[&self]
         };
 
-        should_enable(target, *f, default)
+        should_enable(target, f, default)
     }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, StringEnum, Hash)]
+#[non_exhaustive]
 pub enum Feature {
     /// `transform-template-literals`
     TemplateLiterals,
@@ -166,6 +167,9 @@ pub enum Feature {
     /// `transform-unicode-sets-regex`
     UnicodeSetsRegex,
 
+    /// `transform-duplicate-named-capturing-groups-regex`
+    DuplicateNamedCapturingGroupsRegex, // TODO
+
     /// `bugfix/transform-async-arrows-in-class`
     BugfixAsyncArrowsInClass,
 
@@ -189,11 +193,20 @@ pub enum Feature {
 
     /// `bugfix/transform-v8-spread-parameters-in-optional-chaining`
     BugfixTransformV8SpreadParametersInOptionalChaining, // TODO
+
+    /// `bugfix/transform-v8-static-class-fields-redefine-readonly`
+    BugfixTransformV8StaticClassFieldsRedefineReadonly, // TODO
+
+    /// `bugfix/transform-firefox-class-in-computed-class-key`
+    BugfixTransformFirefoxClassInComputedClassKey, // TODO
+
+    /// `bugfix/transform-safari-class-field-initializer-scope`
+    BugfixTransformSafariClassFieldInitializerScope, // TODO
 }
 
-pub(crate) static FEATURES: Lazy<AHashMap<Feature, BrowserData<Option<Version>>>> =
+pub(crate) static FEATURES: Lazy<FxHashMap<Feature, BrowserData<Option<Version>>>> =
     Lazy::new(|| {
-        let map: AHashMap<Feature, BrowserData<Option<String>>> =
+        let map: FxHashMap<Feature, BrowserData<Option<String>>> =
             serde_json::from_str(include_str!("../data/@babel/compat-data/data/plugins.json"))
                 .expect("failed to parse json");
 
@@ -201,15 +214,25 @@ pub(crate) static FEATURES: Lazy<AHashMap<Feature, BrowserData<Option<Version>>>
             .map(|(feature, version)| {
                 (
                     feature,
-                    version.map_value(|version| version.map(|v| v.parse().unwrap())),
+                    version.map_value(|version| {
+                        if matches!(version.as_deref(), Some("tp")) {
+                            return None;
+                        }
+
+                        version.map(|v| {
+                            v.parse().unwrap_or_else(|err| {
+                                panic!("failed to parse `{v}` as a version: {err:?}")
+                            })
+                        })
+                    }),
                 )
             })
             .collect()
     });
 
-pub(crate) static BUGFIX_FEATURES: Lazy<AHashMap<Feature, BrowserData<Option<Version>>>> =
+pub(crate) static BUGFIX_FEATURES: Lazy<FxHashMap<Feature, BrowserData<Option<Version>>>> =
     Lazy::new(|| {
-        let map: AHashMap<Feature, BrowserData<Option<String>>> = serde_json::from_str(
+        let map: FxHashMap<Feature, BrowserData<Option<String>>> = serde_json::from_str(
             include_str!("../data/@babel/compat-data/data/plugin-bugfixes.json"),
         )
         .expect("failed to parse json");
@@ -233,7 +256,7 @@ mod tests {
     #[test]
     fn arrow() {
         assert!(Feature::ArrowFunctions.should_enable(
-            BrowserData {
+            &BrowserData {
                 ie: Some("11.0.0".parse().unwrap()),
                 ..Default::default()
             },
@@ -245,7 +268,7 @@ mod tests {
     #[test]
     fn tpl_lit() {
         assert!(!Feature::TemplateLiterals.should_enable(
-            BrowserData {
+            &BrowserData {
                 chrome: Some("71.0.0".parse().unwrap()),
                 ..Default::default()
             },
@@ -258,7 +281,7 @@ mod tests {
     fn tpl_lit_bugfixes() {
         // Enable template literals pass in Safari 9 without bugfixes option
         assert!(Feature::TemplateLiterals.should_enable(
-            BrowserData {
+            &BrowserData {
                 safari: Some("9.0.0".parse().unwrap()),
                 ..Default::default()
             },
@@ -267,7 +290,7 @@ mod tests {
         ));
 
         assert!(!Feature::BugfixTaggedTemplateCaching.should_enable(
-            BrowserData {
+            &BrowserData {
                 safari: Some("10.0.0".parse().unwrap()),
                 ..Default::default()
             },
@@ -277,7 +300,7 @@ mod tests {
 
         // Don't enable it with the bugfixes option. Bugfix pass enabled instead.
         assert!(!Feature::TemplateLiterals.should_enable(
-            BrowserData {
+            &BrowserData {
                 safari: Some("9.0.0".parse().unwrap()),
                 ..Default::default()
             },
@@ -286,7 +309,7 @@ mod tests {
         ));
 
         assert!(Feature::BugfixTaggedTemplateCaching.should_enable(
-            BrowserData {
+            &BrowserData {
                 safari: Some("9.0.0".parse().unwrap()),
                 ..Default::default()
             },
@@ -295,7 +318,7 @@ mod tests {
         ));
 
         assert!(!Feature::BugfixTaggedTemplateCaching.should_enable(
-            BrowserData {
+            &BrowserData {
                 safari: Some("13.0.0".parse().unwrap()),
                 ..Default::default()
             },
@@ -308,7 +331,7 @@ mod tests {
     fn edge_default_param_bug() {
         // Enable params pass in Edge 17 without bugfixes option
         assert!(Feature::Parameters.should_enable(
-            BrowserData {
+            &BrowserData {
                 edge: Some("17.0.0".parse().unwrap()),
                 ..Default::default()
             },
@@ -317,7 +340,7 @@ mod tests {
         ));
 
         assert!(!Feature::BugfixEdgeDefaultParam.should_enable(
-            BrowserData {
+            &BrowserData {
                 edge: Some("17.0.0".parse().unwrap()),
                 ..Default::default()
             },
@@ -327,7 +350,7 @@ mod tests {
 
         // Don't enable it with the bugfixes option. Bugfix pass enabled instead.
         assert!(!Feature::Parameters.should_enable(
-            BrowserData {
+            &BrowserData {
                 edge: Some("17.0.0".parse().unwrap()),
                 ..Default::default()
             },
@@ -336,7 +359,7 @@ mod tests {
         ));
 
         assert!(Feature::BugfixEdgeDefaultParam.should_enable(
-            BrowserData {
+            &BrowserData {
                 edge: Some("17.0.0".parse().unwrap()),
                 ..Default::default()
             },
@@ -345,7 +368,7 @@ mod tests {
         ));
 
         assert!(!Feature::BugfixEdgeDefaultParam.should_enable(
-            BrowserData {
+            &BrowserData {
                 edge: Some("18.0.0".parse().unwrap()),
                 ..Default::default()
             },
@@ -358,7 +381,7 @@ mod tests {
     fn async_arrows_in_class_bug() {
         // Enable async to generator pass in Safari 10.1 without bugfixes option
         assert!(Feature::AsyncToGenerator.should_enable(
-            BrowserData {
+            &BrowserData {
                 safari: Some("10.1.0".parse().unwrap()),
                 ..Default::default()
             },
@@ -367,7 +390,7 @@ mod tests {
         ));
 
         assert!(!Feature::BugfixAsyncArrowsInClass.should_enable(
-            BrowserData {
+            &BrowserData {
                 safari: Some("10.1.0".parse().unwrap()),
                 ..Default::default()
             },
@@ -377,7 +400,7 @@ mod tests {
 
         // Don't enable it with the bugfixes option. Bugfix pass enabled instead.
         assert!(!Feature::AsyncToGenerator.should_enable(
-            BrowserData {
+            &BrowserData {
                 safari: Some("10.1.0".parse().unwrap()),
                 ..Default::default()
             },
@@ -386,7 +409,7 @@ mod tests {
         ));
 
         assert!(Feature::BugfixAsyncArrowsInClass.should_enable(
-            BrowserData {
+            &BrowserData {
                 safari: Some("10.1.0".parse().unwrap()),
                 ..Default::default()
             },
@@ -395,7 +418,7 @@ mod tests {
         ));
 
         assert!(!Feature::BugfixAsyncArrowsInClass.should_enable(
-            BrowserData {
+            &BrowserData {
                 safari: Some("11.1.0".parse().unwrap()),
                 ..Default::default()
             },
@@ -408,7 +431,7 @@ mod tests {
     fn block_scoping() {
         // Enable block scoping pass in Safari 10 without bugfixes option
         assert!(Feature::BlockScoping.should_enable(
-            BrowserData {
+            &BrowserData {
                 safari: Some("10.0.0".parse().unwrap()),
                 ..Default::default()
             },
@@ -418,7 +441,7 @@ mod tests {
 
         // Don't enable it with the bugfixes option.
         assert!(!Feature::BlockScoping.should_enable(
-            BrowserData {
+            &BrowserData {
                 safari: Some("10.0.0".parse().unwrap()),
                 ..Default::default()
             },

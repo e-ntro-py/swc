@@ -14,31 +14,29 @@ function F(x) {
 function F2(x) {
     return x < 42;
 }
-var M;
 (function(M) {
-    var _$F2 = function _$F2(x) {
-        return x.toString();
-    };
     var A = function A() {
         "use strict";
         _class_call_check(this, A);
     };
     M.A = A;
-    M.F2 = _$F2;
-})(M || (M = {}));
-var N;
-(function(N) {
-    var _$F2 = function _$F2(x) {
+    function F2(x) {
         return x.toString();
-    };
+    }
+    M.F2 = F2;
+})(M || (M = {}));
+(function(N) {
     var A = function A() {
         "use strict";
         _class_call_check(this, A);
     };
     N.A = A;
-    N.F2 = _$F2;
+    function F2(x) {
+        return x.toString();
+    }
+    N.F2 = F2;
 })(N || (N = {}));
-var aNumber = "this is a string";
+var aNumber = 'this is a string';
 var aString = 9.9;
 var aDate = 9.9;
 var aVoid = 9.9;
@@ -46,14 +44,15 @@ var anInterface = new D();
 var aClass = new D();
 var aGenericClass = new C();
 var anObjectLiteral = {
-    id: "a string"
+    id: 'a string'
 };
 var anOtherObjectLiteral = new C();
 var aFunction = F2;
 var anOtherFunction = F2;
 var aLambda = function(x) {
-    return "a string";
+    return 'a string';
 };
 var aModule = N;
 var aClassInModule = new N.A();
 var aFunctionInModule = F2;
+var M, N;

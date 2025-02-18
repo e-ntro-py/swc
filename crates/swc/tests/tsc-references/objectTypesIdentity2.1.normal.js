@@ -14,12 +14,12 @@ var C = function C() {
     _class_call_check(this, C);
 };
 var a;
-var E;
-(function(E) {
+var E = /*#__PURE__*/ function(E) {
     E[E["A"] = 0] = "A";
-})(E || (E = {}));
+    return E;
+}(E || {});
 var b = {
-    foo: E.A
+    foo: 0
 };
 function foo5(x) {}
 function foo5b(x) {}

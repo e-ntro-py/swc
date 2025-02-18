@@ -1,5 +1,4 @@
 //// [generatorTypeCheck63.ts]
-"use strict";
 function strategy(stratName, gen) {
     return function*(state) {
         for (let next of gen(state))next && (next.lastStrategyApplied = stratName), yield next;
@@ -13,9 +12,6 @@ Object.defineProperty(exports, "__esModule", {
         get: all[name]
     });
 }(exports, {
-    strategy: function() {
-        return strategy;
-    },
     Nothing: function() {
         return Nothing;
     },
@@ -27,6 +23,9 @@ Object.defineProperty(exports, "__esModule", {
     },
     Nothing3: function() {
         return Nothing3;
+    },
+    strategy: function() {
+        return strategy;
     }
 });
 const Nothing = strategy("Nothing", function*(state) {

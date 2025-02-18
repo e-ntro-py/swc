@@ -1,12 +1,11 @@
 //// [ModuleWithExportedAndNonExportedClasses.ts]
 import { _ as _class_call_check } from "@swc/helpers/_/_class_call_check";
-var A;
 (function(A) {
-    var _$A = function A() {
+    var A1 = function A() {
         "use strict";
         _class_call_check(this, A);
     };
-    A.A = _$A;
+    A.A = A1;
     var AG = function AG() {
         "use strict";
         _class_call_check(this, AG);
@@ -28,3 +27,4 @@ var AG = new A.AG();
 // errors expected, these are not exported
 var a2 = new A.A2();
 var ag2 = new A.A2();
+var A;

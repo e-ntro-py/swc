@@ -3,7 +3,6 @@ define([
     "require",
     "exports"
 ], function(require, exports) {
-    "use strict";
     Object.defineProperty(exports, "__esModule", {
         value: !0
     }), Object.defineProperty(exports, "B", {
@@ -24,13 +23,12 @@ define([
     "exports",
     "@swc/helpers/_/_interop_require_wildcard"
 ], function(require, exports, _interop_require_wildcard) {
-    "use strict";
     Object.defineProperty(exports, "__esModule", {
         value: !0
     }), async function() {
         class C extends (await new Promise((resolve, reject)=>require([
                 "./0"
-            ], (m)=>resolve(_interop_require_wildcard._(m)), reject))).B {
+            ], (m)=>resolve(/*#__PURE__*/ _interop_require_wildcard._(m)), reject))).B {
         }
         new C().print();
     }();

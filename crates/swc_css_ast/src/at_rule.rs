@@ -1,11 +1,12 @@
 use is_macro::Is;
 use string_enum::StringEnum;
-use swc_atoms::{Atom, JsWord};
+use swc_atoms::Atom;
 use swc_common::{ast_node, util::take::Take, EqIgnoreSpan, Span};
 
 use crate::{
-    CustomIdent, CustomPropertyName, DashedIdent, Declaration, Dimension, FamilyName, Function,
-    Ident, ListOfComponentValues, Number, Percentage, Ratio, SelectorList, SimpleBlock, Str, Url,
+    CustomIdent, CustomPropertyName, DashedIdent, Declaration, Dimension, FamilyName,
+    ForgivingSelectorList, Function, Ident, ListOfComponentValues, Number, Percentage, Ratio,
+    SelectorList, SimpleBlock, Str, Url,
 };
 
 #[ast_node("AtRule")]
@@ -36,8 +37,8 @@ impl PartialEq<str> for AtRuleName {
     }
 }
 
-impl PartialEq<JsWord> for AtRuleName {
-    fn eq(&self, other: &JsWord) -> bool {
+impl PartialEq<Atom> for AtRuleName {
+    fn eq(&self, other: &Atom) -> bool {
         match self {
             AtRuleName::DashedIdent(v) => v.value == *other,
             AtRuleName::Ident(v) => v.value == *other,
@@ -84,6 +85,18 @@ pub enum AtRulePrelude {
     ContainerPrelude(ContainerCondition),
     #[tag("CustomMedia")]
     CustomMediaPrelude(CustomMediaQuery),
+    #[tag("ScopeRange")]
+    ScopePrelude(ScopeRange),
+}
+
+#[ast_node("ScopeRange")]
+#[derive(Eq, Hash, EqIgnoreSpan)]
+pub struct ScopeRange {
+    pub span: Span,
+    /// https://drafts.csswg.org/css-cascade-6/#typedef-scope-start
+    pub scope_start: Option<ForgivingSelectorList>,
+    /// https://drafts.csswg.org/css-cascade-6/#typedef-scope-end
+    pub scope_end: Option<ForgivingSelectorList>,
 }
 
 #[ast_node]
@@ -436,16 +449,13 @@ pub struct MediaFeatureBoolean {
     feature = "rkyv",
     derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)
 )]
-#[cfg_attr(feature = "rkyv", archive(check_bytes))]
-#[cfg_attr(feature = "rkyv", archive_attr(repr(u32)))]
-#[cfg_attr(
-    feature = "rkyv",
-    archive(bound(
-        serialize = "__S: rkyv::ser::Serializer + rkyv::ser::ScratchSpace + \
-                     rkyv::ser::SharedSerializeRegistry",
-        deserialize = "__D: rkyv::de::SharedDeserializeRegistry"
-    ))
-)]
+#[cfg_attr(feature = "rkyv", derive(bytecheck::CheckBytes))]
+#[cfg_attr(feature = "rkyv", repr(u32))]
+//#[cfg_attr(
+//    feature = "rkyv",
+//    archive(bound(serialize = "__S: rkyv::ser::ScratchSpace +
+// rkyv::ser::Serializer"))
+//)]
 pub enum MediaFeatureRangeComparison {
     /// `<`
     Lt,
@@ -766,16 +776,13 @@ pub struct SizeFeatureBoolean {
     feature = "rkyv",
     derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)
 )]
-#[cfg_attr(feature = "rkyv", archive(check_bytes))]
-#[cfg_attr(feature = "rkyv", archive_attr(repr(u32)))]
-#[cfg_attr(
-    feature = "rkyv",
-    archive(bound(
-        serialize = "__S: rkyv::ser::Serializer + rkyv::ser::ScratchSpace + \
-                     rkyv::ser::SharedSerializeRegistry",
-        deserialize = "__D: rkyv::de::SharedDeserializeRegistry"
-    ))
-)]
+#[cfg_attr(feature = "rkyv", derive(bytecheck::CheckBytes))]
+#[cfg_attr(feature = "rkyv", repr(u32))]
+//#[cfg_attr(
+//    feature = "rkyv",
+//    archive(bound(serialize = "__S: rkyv::ser::ScratchSpace +
+// rkyv::ser::Serializer"))
+//)]
 pub enum SizeFeatureRangeComparison {
     /// `<`
     Lt,
@@ -845,8 +852,7 @@ pub enum SizeFeatureName {
 #[derive(Eq, Hash)]
 pub struct ExtensionName {
     pub span: Span,
-    #[cfg_attr(feature = "rkyv", with(swc_atoms::EncodeJsWord))]
-    pub value: JsWord,
+    pub value: Atom,
     pub raw: Option<Atom>,
 }
 

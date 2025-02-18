@@ -1,5 +1,2 @@
 //// [mappedTypeOverlappingStringEnumKeys.ts]
-var TerrestrialAnimalTypes, AlienAnimalTypes;
-!function(TerrestrialAnimalTypes) {
-    TerrestrialAnimalTypes.CAT = "cat", TerrestrialAnimalTypes.DOG = "dog";
-}(TerrestrialAnimalTypes || (TerrestrialAnimalTypes = {})), (AlienAnimalTypes || (AlienAnimalTypes = {})).CAT = "cat", TerrestrialAnimalTypes.CAT, AlienAnimalTypes.CAT;
+var TerrestrialAnimalTypes, AlienAnimalTypes, TerrestrialAnimalTypes1 = ((TerrestrialAnimalTypes = TerrestrialAnimalTypes1 || {}).CAT = "cat", TerrestrialAnimalTypes.DOG = "dog", TerrestrialAnimalTypes), AlienAnimalTypes1 = ((AlienAnimalTypes = AlienAnimalTypes1 || {}).CAT = "cat", AlienAnimalTypes);

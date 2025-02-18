@@ -1,8 +1,7 @@
 #![allow(dead_code)]
 
-use pmutil::{smart_quote, Quote, ToTokensExt};
 use swc_macros_common::prelude::*;
-use syn::*;
+use syn::{parse::Parse, *};
 
 struct MyField {
     /// Name of the field.
@@ -16,6 +15,18 @@ struct MyField {
     pub hi: bool,
 }
 
+struct InputFieldAttr {
+    kinds: Punctuated<Ident, Token![,]>,
+}
+
+impl Parse for InputFieldAttr {
+    fn parse(input: parse::ParseStream) -> Result<Self> {
+        let kinds = input.call(Punctuated::parse_terminated)?;
+
+        Ok(Self { kinds })
+    }
+}
+
 impl MyField {
     fn from_field(f: &Field) -> Self {
         let mut lo = false;
@@ -26,21 +37,19 @@ impl MyField {
                 continue;
             }
 
-            let meta = attr.parse_meta().unwrap();
-            match meta {
+            match &attr.meta {
+                Meta::Path(..) => {}
                 Meta::List(list) => {
-                    for nested in list.nested {
-                        match nested {
-                            NestedMeta::Meta(Meta::Path(ident)) => {
-                                if ident.is_ident("lo") {
-                                    lo = true;
-                                } else if ident.is_ident("hi") {
-                                    hi = true;
-                                } else {
-                                    panic!("Unknown span attribute: {:?}", ident)
-                                }
-                            }
-                            _ => panic!("Unknown span attribute"),
+                    let input = parse2::<InputFieldAttr>(list.tokens.clone())
+                        .expect("failed to parse as `InputFieldAttr`");
+
+                    for kind in input.kinds {
+                        if kind == "lo" {
+                            lo = true
+                        } else if kind == "hi" {
+                            hi = true
+                        } else {
+                            panic!("Unknown span attribute: {:?}", kind)
                         }
                     }
                 }
@@ -62,7 +71,7 @@ pub fn derive(input: DeriveInput) -> ItemImpl {
         .variants()
         .into_iter()
         .map(|v| {
-            let (pat, bindings) = v.bind("_", Some(def_site()), None);
+            let (pat, bindings) = v.bind("_", Some(Token![ref](def_site())), None);
 
             let body = make_body_for_variant(&v, bindings);
 
@@ -76,53 +85,40 @@ pub fn derive(input: DeriveInput) -> ItemImpl {
                     .collect(),
                 pat,
                 guard: None,
-                fat_arrow_token: def_site(),
-                comma: Some(def_site()),
+                fat_arrow_token: Default::default(),
+                comma: Some(Token ! [ , ](def_site())),
             }
         })
         .collect();
 
     let body = Expr::Match(ExprMatch {
         attrs: Default::default(),
-        match_token: def_site(),
-        brace_token: def_site(),
-        expr: Box::new(
-            Quote::new(def_site::<Span>())
-                .quote_with(smart_quote!(Vars {}, { self }))
-                .parse(),
-        ),
+        match_token: Default::default(),
+        brace_token: Default::default(),
+        expr: Box::new(parse_quote!(self)),
         arms,
     });
 
-    Quote::new(def_site::<Span>())
-        .quote_with(smart_quote!(
-            Vars {
-                Type: &input.ident,
-                body,
-            },
-            {
-                impl swc_common::Spanned for Type {
-                    #[inline]
-                    fn span(&self) -> swc_common::Span {
-                        body
-                    }
-                }
+    let ty = &input.ident;
+
+    let item: ItemImpl = parse_quote! {
+        #[automatically_derived]
+        impl swc_common::Spanned for #ty {
+            #[inline]
+            fn span(&self) -> swc_common::Span {
+                #body
             }
-        ))
-        .parse::<ItemImpl>()
-        .with_generics(input.generics)
+        }
+    };
+    item.with_generics(input.generics)
 }
 
 fn make_body_for_variant(v: &VariantBinder<'_>, bindings: Vec<BindedField<'_>>) -> Box<Expr> {
     /// `swc_common::Spanned::span(#field)`
     fn simple_field(field: &dyn ToTokens) -> Box<Expr> {
-        Box::new(
-            Quote::new(def_site::<Span>())
-                .quote_with(smart_quote!(Vars { field }, {
-                    swc_common::Spanned::span(field)
-                }))
-                .parse(),
-        )
+        Box::new(parse_quote_spanned! (def_site() => {
+            swc_common::Spanned::span(#field)
+        }))
     }
 
     if bindings.is_empty() {
@@ -168,7 +164,7 @@ fn make_body_for_variant(v: &VariantBinder<'_>, bindings: Vec<BindedField<'_>>) 
             .unwrap_or_else(|| {
                 panic!(
                     "#[derive(Spanned)]: cannot determine span field to use for {}",
-                    v.qual_path().dump()
+                    v.qual_path().into_token_stream()
                 )
             });
 
@@ -187,14 +183,8 @@ fn make_body_for_variant(v: &VariantBinder<'_>, bindings: Vec<BindedField<'_>>) 
     match (lo, hi) {
         (Some((lo_field, _)), Some((hi_field, _))) => {
             // Create a new span from lo_field.lo(), hi_field.hi()
-            Box::new(
-                Quote::new(def_site::<Span>())
-                    .quote_with(smart_quote!(Vars { lo_field, hi_field }, {
-                        swc_common::Spanned::span(lo_field)
-                            .with_hi(swc_common::Spanned::span(hi_field).hi())
-                    }))
-                    .parse(),
-            )
+            Box::new(parse_quote!(swc_common::Spanned::span(#lo_field)
+                .with_hi(swc_common::Spanned::span(#hi_field).hi())))
         }
         _ => panic!("#[derive(Spanned)]: #[span(lo)] and #[span(hi)] is required"),
     }
@@ -207,6 +197,10 @@ fn has_empty_span_attr(attrs: &[Attribute]) -> bool {
             return false;
         }
 
-        attr.tokens.is_empty()
+        match &attr.meta {
+            Meta::Path(..) => true,
+            Meta::List(t) => t.tokens.is_empty(),
+            _ => false,
+        }
     })
 }

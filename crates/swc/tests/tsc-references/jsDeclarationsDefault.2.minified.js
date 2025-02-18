@@ -9,25 +9,21 @@ export { foo as bar };
 //// [index3.js]
 import { _ as _class_call_check } from "@swc/helpers/_/_class_call_check";
 var Foo = function Foo() {
-    "use strict";
     _class_call_check(this, Foo), this.a = null;
 };
 export var X = Foo;
 export { Foo as default, Foo as Bar };
 //// [index4.js]
+import { _ as _call_super } from "@swc/helpers/_/_call_super";
 import { _ as _class_call_check } from "@swc/helpers/_/_class_call_check";
 import { _ as _inherits } from "@swc/helpers/_/_inherits";
-import { _ as _create_super } from "@swc/helpers/_/_create_super";
 import Fab from "./index3";
-var Bar = function(Fab) {
-    "use strict";
-    _inherits(Bar, Fab);
-    var _super = _create_super(Bar);
+var Bar = /*#__PURE__*/ function(Fab) {
     function Bar() {
         var _this;
-        return _class_call_check(this, Bar), _this = _super.apply(this, arguments), _this.x = null, _this;
+        return _class_call_check(this, Bar), _this = _call_super(this, Bar, arguments), _this.x = null, _this;
     }
-    return Bar;
+    return _inherits(Bar, Fab), Bar;
 }(Fab);
 export default Bar;
 //// [index5.js]

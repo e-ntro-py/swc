@@ -1,5 +1,4 @@
 //// [0.ts]
-"use strict";
 Object.defineProperty(exports, "__esModule", {
     value: !0
 }), function(target, all) {
@@ -17,7 +16,6 @@ Object.defineProperty(exports, "__esModule", {
 });
 var a = 1, b = 2;
 //// [1.ts]
-"use strict";
 Object.defineProperty(exports, "__esModule", {
     value: !0
 }), Object.defineProperty(exports, "ns", {
@@ -26,12 +24,11 @@ Object.defineProperty(exports, "__esModule", {
         return _0;
     }
 });
-var _0 = require("@swc/helpers/_/_interop_require_wildcard")._(require("./0"));
+var _0 = /*#__PURE__*/ require("@swc/helpers/_/_interop_require_wildcard")._(require("./0"));
 ns.a, ns.b;
 //// [2.ts]
-"use strict";
 Object.defineProperty(exports, "__esModule", {
     value: !0
 });
-var _1 = require("@swc/helpers/_/_interop_require_wildcard")._(require("./1"));
+var _1 = /*#__PURE__*/ require("@swc/helpers/_/_interop_require_wildcard")._(require("./1"));
 _1.ns.a, _1.ns.b;

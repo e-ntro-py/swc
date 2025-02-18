@@ -1,7 +1,6 @@
 //// [assignmentCompatWithGenericCallSignaturesWithOptionalParameters.ts]
 // call signatures in derived types must have the same or fewer optional parameters as the target for assignment
 import { _ as _class_call_check } from "@swc/helpers/_/_class_call_check";
-var ClassTypeParam;
 (function(ClassTypeParam) {
     var Base = function Base() {
         "use strict";
@@ -65,9 +64,16 @@ var ClassTypeParam;
         };
     };
 })(ClassTypeParam || (ClassTypeParam = {}));
-var GenericSignaturesInvalid;
 (function(GenericSignaturesInvalid) {
-    var foo = function foo() {
+    var Base2 = function Base2() {
+        "use strict";
+        _class_call_check(this, Base2);
+    };
+    var Target = function Target() {
+        "use strict";
+        _class_call_check(this, Target);
+    };
+    function foo() {
         var b;
         var t;
         // all errors
@@ -96,17 +102,8 @@ var GenericSignaturesInvalid;
         b.a5 = t.a3;
         b.a5 = t.a4;
         b.a5 = t.a5;
-    };
-    var Base2 = function Base2() {
-        "use strict";
-        _class_call_check(this, Base2);
-    };
-    var Target = function Target() {
-        "use strict";
-        _class_call_check(this, Target);
-    };
+    }
 })(GenericSignaturesInvalid || (GenericSignaturesInvalid = {}));
-var GenericSignaturesValid;
 (function(GenericSignaturesValid) {
     var Base2 = function Base2() {
         "use strict";
@@ -170,3 +167,4 @@ var GenericSignaturesValid;
         };
     };
 })(GenericSignaturesValid || (GenericSignaturesValid = {}));
+var ClassTypeParam, GenericSignaturesInvalid, GenericSignaturesValid;

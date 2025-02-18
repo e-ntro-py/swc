@@ -1,7 +1,8 @@
 use std::{cell::RefCell, char::REPLACEMENT_CHARACTER, collections::VecDeque, mem::take, rc::Rc};
 
+use rustc_hash::FxHashSet;
 use swc_atoms::{js_word, Atom, JsWord};
-use swc_common::{collections::AHashSet, input::Input, BytePos, Span};
+use swc_common::{input::Input, BytePos, Span};
 use swc_html_ast::{AttributeToken, Raw, Token, TokenAndSpan};
 use swc_html_utils::{Entity, HTML_ENTITIES};
 
@@ -113,7 +114,7 @@ where
     buf: Rc<RefCell<String>>,
     sub_buf: Rc<RefCell<String>>,
     current_token: Option<Token>,
-    attributes_validator: AHashSet<JsWord>,
+    attributes_validator: FxHashSet<JsWord>,
     attribute_start_position: Option<BytePos>,
     character_reference_code: Option<Vec<(u8, u32, Option<char>)>>,
     temporary_buffer: String,
@@ -135,7 +136,7 @@ where
             finished: false,
             state: State::Data,
             return_state: State::Data,
-            errors: vec![],
+            errors: Vec::new(),
             last_start_tag_name: None,
             pending_tokens: VecDeque::with_capacity(16),
             buf: Rc::new(RefCell::new(String::with_capacity(256))),
@@ -152,7 +153,10 @@ where
         // A leading Byte Order Mark (BOM) causes the character encoding argument to be
         // ignored and will itself be skipped.
         if lexer.input.is_at_start() && lexer.input.cur() == Some('\u{feff}') {
-            lexer.input.bump();
+            unsafe {
+                // Safety: We know that the current character is '\u{feff}'.
+                lexer.input.bump();
+            }
         }
 
         lexer
@@ -193,7 +197,7 @@ where
     }
 
     fn set_last_start_tag_name(&mut self, tag_name: &JsWord) {
-        self.last_start_tag_name = Some(tag_name.into());
+        self.last_start_tag_name = Some(tag_name.clone());
     }
 
     fn set_adjusted_current_node_to_html_namespace(&mut self, value: bool) {
@@ -240,13 +244,19 @@ where
         self.cur_pos = self.input.cur_pos();
 
         if self.cur.is_some() {
-            self.input.bump();
+            unsafe {
+                // Safety: self.cur is Some()
+                self.input.bump();
+            }
         }
     }
 
     #[inline(always)]
     fn reconsume(&mut self) {
-        self.input.reset_to(self.cur_pos);
+        unsafe {
+            // Safety: self.cur_pos is valid position because we got it from self.input
+            self.input.reset_to(self.cur_pos);
+        }
     }
 
     #[inline(always)]
@@ -272,7 +282,7 @@ where
     #[cold]
     fn emit_error(&mut self, kind: ErrorKind) {
         self.errors.push(Error::new(
-            Span::new(self.cur_pos, self.input.cur_pos(), Default::default()),
+            Span::new(self.cur_pos, self.input.cur_pos()),
             kind,
         ));
     }
@@ -281,7 +291,7 @@ where
     fn emit_token(&mut self, token: Token) {
         let cur_pos = self.input.cur_pos();
 
-        let span = Span::new(self.last_token_pos, cur_pos, Default::default());
+        let span = Span::new(self.last_token_pos, cur_pos);
 
         self.last_token_pos = cur_pos;
         self.pending_tokens.push_back(TokenAndSpan { span, token });
@@ -401,7 +411,10 @@ where
             sub_buf.push(c);
 
             if self.input.cur() == Some('\n') {
-                self.input.bump();
+                unsafe {
+                    // Safety: cur() is Some('\n')
+                    self.input.bump();
+                }
 
                 sub_buf.push('\n');
             }
@@ -466,7 +479,10 @@ where
             sub_buf.push(c);
 
             if self.input.cur() == Some('\n') {
-                self.input.bump();
+                unsafe {
+                    // Safety: cur() is Some('\n')
+                    self.input.bump();
+                }
 
                 sub_buf.push('\n');
             }
@@ -497,7 +513,10 @@ where
             sub_buf.push(c);
 
             if self.input.cur() == Some('\n') {
-                self.input.bump();
+                unsafe {
+                    // Safety: cur() is Some('\n')
+                    self.input.bump();
+                }
 
                 sub_buf.push('\n');
             }
@@ -602,7 +621,7 @@ where
             tag_name: js_word!(""),
             raw_tag_name: None,
             is_self_closing: false,
-            attributes: vec![],
+            attributes: Vec::new(),
         });
     }
 
@@ -614,7 +633,7 @@ where
             raw_tag_name: None,
             is_self_closing: false,
             // In valid HTML code closed tags do not have attributes
-            attributes: vec![],
+            attributes: Vec::new(),
         });
     }
 
@@ -760,8 +779,7 @@ where
 
                     let name: JsWord = buf.clone().into();
                     let raw_name = Atom::new(sub_buf.clone());
-                    let span =
-                        Span::new(attribute_start_position, self.cur_pos, Default::default());
+                    let span = Span::new(attribute_start_position, self.cur_pos);
 
                     if self.attributes_validator.contains(&name) {
                         self.errors
@@ -795,7 +813,10 @@ where
             sub_buf.push('\r');
 
             if self.input.cur() == Some('\n') {
-                self.input.bump();
+                unsafe {
+                    // Safety: cur() is Some('\n')
+                    self.input.bump();
+                }
 
                 sub_buf.push('\n');
             }
@@ -826,7 +847,10 @@ where
             sub_buf.push(c);
 
             if self.input.cur() == Some('\n') {
-                self.input.bump();
+                unsafe {
+                    // Safety: cur() is Some('\n')
+                    self.input.bump();
+                }
 
                 sub_buf.push('\n');
             }
@@ -872,8 +896,7 @@ where
                         sub_buf.clear();
                     }
 
-                    last.span =
-                        Span::new(attribute_start_position, self.cur_pos, Default::default());
+                    last.span = Span::new(attribute_start_position, self.cur_pos);
                 }
             }
         }
@@ -955,7 +978,10 @@ where
             sub_buf.push(c);
 
             if self.input.cur() == Some('\n') {
-                self.input.bump();
+                unsafe {
+                    // Safety: cur() is Some('\n')
+                    self.input.bump();
+                }
 
                 sub_buf.push('\n');
             }
@@ -1022,8 +1048,10 @@ where
             buf.push(c);
 
             if self.input.cur() == Some('\n') {
-                self.input.bump();
-
+                unsafe {
+                    // Safety: cur() is Some('\n')
+                    self.input.bump();
+                }
                 buf.push('\n');
             }
 
@@ -2861,7 +2889,10 @@ where
                     lexer.state = State::BogusComment;
                     lexer.cur_pos = cur_pos;
                     // We don't validate input here because we reset position
-                    lexer.input.reset_to(cur_pos);
+                    unsafe {
+                        // Safety: We reset position to the previous one
+                        lexer.input.reset_to(cur_pos);
+                    }
                 };
 
                 // If the next few characters are:
@@ -3536,7 +3567,11 @@ where
                             _ => {
                                 buf.clear();
                                 self.cur_pos = cur_pos;
-                                self.input.reset_to(cur_pos);
+                                unsafe {
+                                    // Safety: We got cur_pos from self.input.cur_pos() above, so
+                                    // it's a valid position.
+                                    self.input.reset_to(cur_pos);
+                                }
                                 self.emit_error(
                                     ErrorKind::InvalidCharacterSequenceAfterDoctypeName,
                                 );
@@ -4393,10 +4428,16 @@ where
 
                 if entity.is_some() {
                     self.cur_pos = entity_cur_pos.unwrap();
-                    self.input.reset_to(entity_cur_pos.unwrap());
+                    unsafe {
+                        // Safety: We got entity_cur_pos from the input, so it's valid
+                        self.input.reset_to(entity_cur_pos.unwrap());
+                    }
                 } else {
                     self.cur_pos = initial_cur_pos;
-                    self.input.reset_to(initial_cur_pos);
+                    unsafe {
+                        // Safety: We got initial_cur_pos from the input, so it's valid
+                        self.input.reset_to(initial_cur_pos);
+                    }
                 }
 
                 let is_last_semicolon = self.temporary_buffer.ends_with(';');
@@ -4814,7 +4855,10 @@ where
     #[inline(always)]
     fn skip_whitespaces(&mut self, c: char) {
         if c == '\r' && self.input.cur() == Some('\n') {
-            self.input.bump();
+            unsafe {
+                // Safety: cur() is Some
+                self.input.bump();
+            }
         }
     }
 }

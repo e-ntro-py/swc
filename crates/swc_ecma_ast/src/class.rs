@@ -1,5 +1,5 @@
 use is_macro::Is;
-use swc_common::{ast_node, util::take::Take, EqIgnoreSpan, Span, DUMMY_SP};
+use swc_common::{ast_node, util::take::Take, EqIgnoreSpan, Span, SyntaxContext, DUMMY_SP};
 
 use crate::{
     expr::Expr,
@@ -11,16 +11,19 @@ use crate::{
         Accessibility, TsExprWithTypeArgs, TsIndexSignature, TsTypeAnn, TsTypeParamDecl,
         TsTypeParamInstantiation,
     },
-    BigInt, ComputedPropName, EmptyStmt, Id, Ident, Number,
+    BigInt, ComputedPropName, EmptyStmt, Id, Ident, IdentName, Number,
 };
 
 #[ast_node]
-#[derive(Eq, Hash, EqIgnoreSpan)]
+#[derive(Eq, Hash, EqIgnoreSpan, Default)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub struct Class {
     pub span: Span,
 
-    #[cfg_attr(c, serde(default))]
+    pub ctxt: SyntaxContext,
+
+    #[cfg_attr(feature = "serde-impl", serde(default))]
     pub decorators: Vec<Decorator>,
 
     #[cfg_attr(feature = "serde-impl", serde(default))]
@@ -46,14 +49,7 @@ pub struct Class {
 impl Take for Class {
     fn dummy() -> Self {
         Class {
-            span: DUMMY_SP,
-            decorators: Default::default(),
-            body: Default::default(),
-            super_class: Default::default(),
-            is_abstract: Default::default(),
-            type_params: Default::default(),
-            super_type_params: Default::default(),
-            implements: Default::default(),
+            ..Default::default()
         }
     }
 }
@@ -61,6 +57,7 @@ impl Take for Class {
 #[ast_node]
 #[derive(Eq, Hash, Is, EqIgnoreSpan)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub enum ClassMember {
     #[tag("Constructor")]
     Constructor(Constructor),
@@ -95,8 +92,9 @@ impl Take for ClassMember {
 }
 
 #[ast_node("ClassProperty")]
-#[derive(Eq, Hash, EqIgnoreSpan)]
+#[derive(Eq, Hash, EqIgnoreSpan, Default)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub struct ClassProp {
     #[cfg_attr(feature = "serde-impl", serde(default))]
     pub span: Span,
@@ -140,11 +138,15 @@ pub struct ClassProp {
 }
 
 #[ast_node("PrivateProperty")]
-#[derive(Eq, Hash, EqIgnoreSpan)]
+#[derive(Eq, Hash, EqIgnoreSpan, Default)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub struct PrivateProp {
     #[cfg_attr(feature = "serde-impl", serde(default))]
     pub span: Span,
+
+    #[cfg_attr(feature = "serde-impl", serde(default))]
+    pub ctxt: SyntaxContext,
 
     pub key: PrivateName,
 
@@ -177,49 +179,62 @@ pub struct PrivateProp {
     pub definite: bool,
 }
 
-macro_rules! method {
-    ($name:ident, $ty:literal, $KEY:ty) => {
-        #[ast_node($ty)]
-        #[derive(Eq, Hash, EqIgnoreSpan)]
-        #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-        pub struct $name {
-            #[cfg_attr(feature = "serde-impl", serde(default))]
-            pub span: Span,
-
-            pub key: $KEY,
-
-            pub function: Box<Function>,
-
-            pub kind: MethodKind,
-
-            #[cfg_attr(feature = "serde-impl", serde(default))]
-            pub is_static: bool,
-
-            /// Typescript extension.
-            #[cfg_attr(feature = "serde-impl", serde(default))]
-            pub accessibility: Option<Accessibility>,
-
-            /// Typescript extension.
-            #[cfg_attr(feature = "serde-impl", serde(default))]
-            pub is_abstract: bool,
-
-            #[cfg_attr(feature = "serde-impl", serde(default))]
-            pub is_optional: bool,
-
-            #[cfg_attr(feature = "serde-impl", serde(default))]
-            pub is_override: bool,
-        }
-    };
+#[ast_node("ClassMethod")]
+#[derive(Eq, Hash, EqIgnoreSpan, Default)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
+pub struct ClassMethod {
+    #[cfg_attr(feature = "serde-impl", serde(default))]
+    pub span: Span,
+    pub key: PropName,
+    pub function: Box<Function>,
+    pub kind: MethodKind,
+    #[cfg_attr(feature = "serde-impl", serde(default))]
+    pub is_static: bool,
+    #[doc = r" Typescript extension."]
+    #[cfg_attr(feature = "serde-impl", serde(default))]
+    pub accessibility: Option<Accessibility>,
+    #[doc = r" Typescript extension."]
+    #[cfg_attr(feature = "serde-impl", serde(default))]
+    pub is_abstract: bool,
+    #[cfg_attr(feature = "serde-impl", serde(default))]
+    pub is_optional: bool,
+    #[cfg_attr(feature = "serde-impl", serde(default))]
+    pub is_override: bool,
 }
 
-method!(ClassMethod, "ClassMethod", PropName);
-method!(PrivateMethod, "PrivateMethod", PrivateName);
+#[ast_node("PrivateMethod")]
+#[derive(Eq, Hash, EqIgnoreSpan, Default)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
+pub struct PrivateMethod {
+    #[cfg_attr(feature = "serde-impl", serde(default))]
+    pub span: Span,
+    pub key: PrivateName,
+    pub function: Box<Function>,
+    pub kind: MethodKind,
+    #[cfg_attr(feature = "serde-impl", serde(default))]
+    pub is_static: bool,
+    #[doc = r" Typescript extension."]
+    #[cfg_attr(feature = "serde-impl", serde(default))]
+    pub accessibility: Option<Accessibility>,
+    #[doc = r" Typescript extension."]
+    #[cfg_attr(feature = "serde-impl", serde(default))]
+    pub is_abstract: bool,
+    #[cfg_attr(feature = "serde-impl", serde(default))]
+    pub is_optional: bool,
+    #[cfg_attr(feature = "serde-impl", serde(default))]
+    pub is_override: bool,
+}
 
 #[ast_node("Constructor")]
-#[derive(Eq, Hash, EqIgnoreSpan)]
+#[derive(Eq, Hash, EqIgnoreSpan, Default)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub struct Constructor {
     pub span: Span,
+
+    pub ctxt: SyntaxContext,
 
     pub key: PropName,
 
@@ -236,8 +251,9 @@ pub struct Constructor {
 }
 
 #[ast_node("Decorator")]
-#[derive(Eq, Hash, EqIgnoreSpan)]
+#[derive(Eq, Hash, EqIgnoreSpan, Default)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub struct Decorator {
     pub span: Span,
 
@@ -245,16 +261,18 @@ pub struct Decorator {
     pub expr: Box<Expr>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EqIgnoreSpan)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EqIgnoreSpan, Default)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(
     any(feature = "rkyv-impl"),
     derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)
 )]
-#[cfg_attr(feature = "rkyv-impl", archive(check_bytes))]
-#[cfg_attr(feature = "rkyv-impl", archive_attr(repr(u32)))]
+#[cfg_attr(feature = "rkyv-impl", derive(bytecheck::CheckBytes))]
+#[cfg_attr(feature = "rkyv-impl", repr(u32))]
 #[cfg_attr(feature = "serde-impl", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub enum MethodKind {
+    #[default]
     #[cfg_attr(feature = "serde-impl", serde(rename = "method"))]
     Method,
     #[cfg_attr(feature = "serde-impl", serde(rename = "getter"))]
@@ -264,8 +282,9 @@ pub enum MethodKind {
 }
 
 #[ast_node("StaticBlock")]
-#[derive(Eq, Hash, EqIgnoreSpan)]
+#[derive(Eq, Hash, EqIgnoreSpan, Default)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub struct StaticBlock {
     pub span: Span,
     pub body: BlockStmt,
@@ -284,6 +303,7 @@ impl Take for StaticBlock {
 #[ast_node]
 #[derive(Is, Eq, Hash, EqIgnoreSpan)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub enum Key {
     #[tag("PrivateName")]
     Private(PrivateName),
@@ -295,7 +315,8 @@ pub enum Key {
     Public(PropName),
 }
 
-bridge_from!(Key, PropName, Ident);
+bridge_from!(Key, IdentName, Ident);
+bridge_from!(Key, PropName, IdentName);
 bridge_from!(Key, PropName, Id);
 bridge_from!(Key, PropName, Number);
 bridge_from!(Key, PropName, ComputedPropName);
@@ -303,13 +324,20 @@ bridge_from!(Key, PropName, BigInt);
 
 impl Take for Key {
     fn dummy() -> Self {
-        Key::Public(Take::dummy())
+        Default::default()
+    }
+}
+
+impl Default for Key {
+    fn default() -> Self {
+        Key::Public(Default::default())
     }
 }
 
 #[ast_node("AutoAccessor")]
-#[derive(Eq, Hash, EqIgnoreSpan)]
+#[derive(Eq, Hash, EqIgnoreSpan, Default)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub struct AutoAccessor {
     #[cfg_attr(feature = "serde-impl", serde(default))]
     pub span: Span,
@@ -331,6 +359,15 @@ pub struct AutoAccessor {
     /// Typescript extension.
     #[cfg_attr(feature = "serde-impl", serde(default))]
     pub accessibility: Option<Accessibility>,
+
+    #[cfg_attr(feature = "serde-impl", serde(default))]
+    pub is_abstract: bool,
+
+    #[cfg_attr(feature = "serde-impl", serde(default))]
+    pub is_override: bool,
+
+    #[cfg_attr(feature = "serde-impl", serde(default))]
+    pub definite: bool,
 }
 
 impl Take for AutoAccessor {
@@ -343,6 +380,9 @@ impl Take for AutoAccessor {
             is_static: false,
             decorators: Take::dummy(),
             accessibility: None,
+            is_abstract: false,
+            is_override: false,
+            definite: false,
         }
     }
 }

@@ -16,14 +16,15 @@ use normpath::BasePath;
 use once_cell::sync::Lazy;
 use path_clean::PathClean;
 use pathdiff::diff_paths;
+use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 use serde::Deserialize;
-use swc_common::{
-    collections::{AHashMap, AHashSet},
-    FileName,
-};
+use swc_common::FileName;
 use tracing::{debug, trace, Level};
 
-use crate::{resolve::Resolve, TargetEnv, NODE_BUILTINS};
+use crate::{
+    resolve::{Resolution, Resolve},
+    TargetEnv, NODE_BUILTINS,
+};
 
 static PACKAGE: &str = "package.json";
 
@@ -33,15 +34,15 @@ static PACKAGE: &str = "package.json";
 /// directory containing the package.json file which is important
 /// to ensure we only apply these `browser` rules to modules in
 /// the owning package.
-static BROWSER_CACHE: Lazy<DashMap<PathBuf, BrowserCache, ahash::RandomState>> =
+static BROWSER_CACHE: Lazy<DashMap<PathBuf, BrowserCache, FxBuildHasher>> =
     Lazy::new(Default::default);
 
 #[derive(Debug, Default)]
 struct BrowserCache {
-    rewrites: AHashMap<PathBuf, PathBuf>,
-    ignores: AHashSet<PathBuf>,
-    module_rewrites: AHashMap<String, PathBuf>,
-    module_ignores: AHashSet<String>,
+    rewrites: FxHashMap<PathBuf, PathBuf>,
+    ignores: FxHashSet<PathBuf>,
+    module_rewrites: FxHashMap<String, PathBuf>,
+    module_ignores: FxHashSet<String>,
 }
 
 /// Helper to find the nearest `package.json` file to get
@@ -87,7 +88,7 @@ struct PackageJson {
 #[serde(untagged)]
 enum Browser {
     Str(String),
-    Obj(AHashMap<String, StringOrBool>),
+    Obj(FxHashMap<String, StringOrBool>),
 }
 
 #[derive(Deserialize, Clone)]
@@ -100,24 +101,40 @@ enum StringOrBool {
 #[derive(Debug, Default)]
 pub struct NodeModulesResolver {
     target_env: TargetEnv,
-    alias: AHashMap<String, String>,
+    alias: FxHashMap<String, String>,
     // if true do not resolve symlink
     preserve_symlinks: bool,
+    ignore_node_modules: bool,
 }
 
-static EXTENSIONS: &[&str] = &["ts", "tsx", "js", "jsx", "json", "node"];
+static EXTENSIONS: &[&str] = &["ts", "tsx", "js", "jsx", "node"];
 
 impl NodeModulesResolver {
     /// Create a node modules resolver for the target runtime environment.
     pub fn new(
         target_env: TargetEnv,
-        alias: AHashMap<String, String>,
+        alias: FxHashMap<String, String>,
         preserve_symlinks: bool,
     ) -> Self {
         Self {
             target_env,
             alias,
             preserve_symlinks,
+            ignore_node_modules: false,
+        }
+    }
+
+    /// Create a node modules resolver which does not care about `node_modules`
+    pub fn without_node_modules(
+        target_env: TargetEnv,
+        alias: FxHashMap<String, String>,
+        preserve_symlinks: bool,
+    ) -> Self {
+        Self {
+            target_env,
+            alias,
+            preserve_symlinks,
+            ignore_node_modules: true,
         }
     }
 
@@ -138,7 +155,7 @@ impl NodeModulesResolver {
         let _tracing = if cfg!(debug_assertions) {
             Some(
                 tracing::span!(
-                    Level::ERROR,
+                    Level::TRACE,
                     "resolve_as_file",
                     path = tracing::field::display(path.display())
                 )
@@ -220,7 +237,7 @@ impl NodeModulesResolver {
         let _tracing = if cfg!(debug_assertions) {
             Some(
                 tracing::span!(
-                    Level::ERROR,
+                    Level::TRACE,
                     "resolve_as_directory",
                     path = tracing::field::display(path.display())
                 )
@@ -260,7 +277,7 @@ impl NodeModulesResolver {
         let _tracing = if cfg!(debug_assertions) {
             Some(
                 tracing::span!(
-                    Level::ERROR,
+                    Level::TRACE,
                     "resolve_package_entry",
                     pkg_dir = tracing::field::display(pkg_dir.display()),
                     pkg_path = tracing::field::display(pkg_path.display()),
@@ -369,6 +386,10 @@ impl NodeModulesResolver {
         base_dir: &Path,
         target: &str,
     ) -> Result<Option<PathBuf>, Error> {
+        if self.ignore_node_modules {
+            return Ok(None);
+        }
+
         let absolute_path = to_absolute_path(base_dir)?;
         let mut path = Some(&*absolute_path);
         while let Some(dir) = path {
@@ -389,14 +410,27 @@ impl NodeModulesResolver {
 
         Ok(None)
     }
-}
 
-impl Resolve for NodeModulesResolver {
-    fn resolve(&self, base: &FileName, target: &str) -> Result<FileName, Error> {
+    fn resolve_filename(&self, base: &FileName, module_specifier: &str) -> Result<FileName, Error> {
         debug!(
-            "Resolve {} from {:#?} for {:#?}",
-            target, base, self.target_env
+            "Resolving {} from {:#?} for {:#?}",
+            module_specifier, base, self.target_env
         );
+
+        if !module_specifier.starts_with('.') {
+            // Handle absolute path
+
+            let path = Path::new(module_specifier);
+
+            if let Ok(file) = self
+                .resolve_as_file(path)
+                .or_else(|_| self.resolve_as_directory(path, false))
+            {
+                if let Ok(file) = self.wrap(file) {
+                    return Ok(file);
+                }
+            }
+        }
 
         let base = match base {
             FileName::Real(v) => v,
@@ -416,10 +450,10 @@ impl Resolve for NodeModulesResolver {
             if let Some(pkg_base) = find_package_root(base) {
                 if let Some(item) = BROWSER_CACHE.get(&pkg_base) {
                     let value = item.value();
-                    if value.module_ignores.contains(target) {
-                        return Ok(FileName::Custom(target.into()));
+                    if value.module_ignores.contains(module_specifier) {
+                        return Ok(FileName::Custom(module_specifier.into()));
                     }
-                    if let Some(rewrite) = value.module_rewrites.get(target) {
+                    if let Some(rewrite) = value.module_rewrites.get(module_specifier) {
                         return self.wrap(Some(rewrite.to_path_buf()));
                     }
                 }
@@ -428,21 +462,21 @@ impl Resolve for NodeModulesResolver {
 
         // Handle builtin modules for nodejs
         if let TargetEnv::Node = self.target_env {
-            if target.starts_with("node:") {
-                return Ok(FileName::Custom(target.into()));
+            if module_specifier.starts_with("node:") {
+                return Ok(FileName::Custom(module_specifier.into()));
             }
 
-            if is_core_module(target) {
-                return Ok(FileName::Custom(format!("node:{}", target)));
+            if is_core_module(module_specifier) {
+                return Ok(FileName::Custom(format!("node:{}", module_specifier)));
             }
         }
 
         // Aliases allow browser shims to be renamed so we can
         // map `stream` to `stream-browserify` for example
-        let target = if let Some(alias) = self.alias.get(target) {
+        let target = if let Some(alias) = self.alias.get(module_specifier) {
             &alias[..]
         } else {
-            target
+            module_specifier
         };
 
         let target_path = Path::new(target);
@@ -505,5 +539,15 @@ impl Resolve for NodeModulesResolver {
         });
 
         file_name
+    }
+}
+
+impl Resolve for NodeModulesResolver {
+    fn resolve(&self, base: &FileName, module_specifier: &str) -> Result<Resolution, Error> {
+        self.resolve_filename(base, module_specifier)
+            .map(|filename| Resolution {
+                filename,
+                slug: None,
+            })
     }
 }

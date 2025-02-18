@@ -1,5 +1,6 @@
+use rustc_hash::FxHashSet;
 use serde::{Deserialize, Serialize};
-use swc_common::{collections::AHashSet, Span};
+use swc_common::Span;
 use swc_css_ast::*;
 use swc_css_visit::{Visit, VisitWith};
 
@@ -47,7 +48,8 @@ impl FontFamilyNoDuplicateNames {
                 Option::<(String, Span)>::None,
             ),
             |(mut fonts, last_identifier), item| match item {
-                ComponentValue::Ident(box Ident { value, span, .. }) => {
+                ComponentValue::Ident(ident) => {
+                    let Ident { value, span, .. } = &**ident;
                     if let Some((mut identifier, last_span)) = last_identifier {
                         identifier.push(' ');
                         identifier.push_str(value);
@@ -56,18 +58,12 @@ impl FontFamilyNoDuplicateNames {
                         (fonts, Some((value.to_string(), *span)))
                     }
                 }
-                ComponentValue::Str(box Str {
-                    raw: Some(raw),
-                    span,
-                    ..
-                }) => {
-                    fonts.push((FontNameKind::from(raw), *span));
+                ComponentValue::Str(s) if s.raw.is_some() => {
+                    let raw = s.raw.as_ref().unwrap();
+                    fonts.push((FontNameKind::from(raw), s.span));
                     (fonts, None)
                 }
-                ComponentValue::Delimiter(box Delimiter {
-                    value: DelimiterValue::Comma,
-                    ..
-                }) => {
+                ComponentValue::Delimiter(delimiter) if delimiter.value.is_comma() => {
                     if let Some((identifier, span)) = last_identifier {
                         fonts.push((FontNameKind::from(identifier), span));
                     }
@@ -82,7 +78,7 @@ impl FontFamilyNoDuplicateNames {
 
         fonts
             .iter()
-            .fold(AHashSet::default(), |mut seen, (font, span)| {
+            .fold(FxHashSet::default(), |mut seen, (font, span)| {
                 let name = font.name();
                 if seen.contains(&font) && self.ignored.iter().all(|item| !item.is_match(name)) {
                     self.ctx
@@ -98,13 +94,11 @@ impl Visit for FontFamilyNoDuplicateNames {
     fn visit_declaration(&mut self, declaration: &Declaration) {
         match &declaration.name {
             DeclarationName::Ident(Ident { value, .. })
-                if value.eq_str_ignore_ascii_case("font-family") =>
+                if value.eq_ignore_ascii_case("font-family") =>
             {
                 self.check_component_values(&declaration.value);
             }
-            DeclarationName::Ident(Ident { value, .. })
-                if value.eq_str_ignore_ascii_case("font") =>
-            {
+            DeclarationName::Ident(Ident { value, .. }) if value.eq_ignore_ascii_case("font") => {
                 let index = declaration
                     .value
                     .iter()

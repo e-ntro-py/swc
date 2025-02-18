@@ -25,7 +25,7 @@ function ExpandoMerge(n) {
 ExpandoArrow.prop = 2, ExpandoArrow.m = function(n) {
     return n + 1;
 }, ExpandoMerge.p1 = 111, (ExpandoMerge || (ExpandoMerge = {})).p2 = 222, (ExpandoMerge || (ExpandoMerge = {})).p3 = 333, ExpandoMerge.p1, ExpandoMerge.p2, ExpandoMerge.p3, ExpandoMerge(1), function(Ns) {
-    var ExpandoNamespace = function() {};
+    function ExpandoNamespace() {}
     ExpandoNamespace.p6 = 42, Ns.foo = function() {
         return ExpandoNamespace;
     };
@@ -37,14 +37,12 @@ ExpandoExpr2.prop = 2, ExpandoExpr2.m = function(n) {
     return n + 1;
 }, ExpandoExpr2.prop, ExpandoExpr2.m(12), ExpandoExpr2(101).length;
 var ExpandoClass = function ExpandoClass() {
-    "use strict";
     _class_call_check(this, ExpandoClass), this.n = 1001;
 };
 ExpandoClass.prop = 2, ExpandoClass.m = function(n) {
     return n + 1;
 }, ExpandoClass.prop, ExpandoClass.m(12), new ExpandoClass().n;
 var ExpandoExpr3 = function ExpandoExpr3() {
-    "use strict";
     _class_call_check(this, ExpandoExpr3), this.n = 10001;
 };
 ExpandoExpr3.prop = 3, ExpandoExpr3.m = function(n) {

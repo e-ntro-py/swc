@@ -15,11 +15,7 @@ var A = /*#__PURE__*/ function() {
     };
     return A;
 }();
-var M;
-(function(M) {
-    var n;
-    M.n = n;
-})(M || (M = {}));
+(function(M) {})(M || (M = {}));
 var objA = new A();
 // boolean type var
 var ResultIsAny1 = void BOOLEAN;
@@ -43,3 +39,4 @@ void foo();
 true, false;
 void objA.a;
 void M.n;
+var M;

@@ -15,11 +15,7 @@ var A = function A() {
     "use strict";
     _class_call_check(this, A);
 };
-var M;
-(function(M) {
-    var n;
-    M.n = n;
-})(M || (M = {}));
+(function(M) {})(M || (M = {}));
 var objA = new A();
 // any type var
 var ResultIsNumber1 = ++ANY;
@@ -50,3 +46,4 @@ ANY2[0]++;
 ANY++, ANY1++;
 objA.a++;
 M.n++;
+var M;

@@ -37,10 +37,8 @@ function foo5(x) {
         var y = x; // string;
     }
 }
-var m;
 (function(m) {
     var x;
-    var m2;
     (function(m2) {
         var b = x; // new scope - number | boolean | string
         var y;
@@ -52,13 +50,11 @@ var m;
              : x.toString(); // number
         }
     })(m2 || (m2 = {}));
+    var m2;
 })(m || (m = {}));
-var m1;
 (function(m1) {
     var x;
-    var m2;
     (function(m2) {
-        var m3;
         (function(m3) {
             var b = x; // new scope - number | boolean | string
             var y;
@@ -69,6 +65,8 @@ var m1;
                 y = typeof x === "boolean" ? x.toString() // boolean
                  : x.toString(); // number
             }
-        })(m3 = m2.m3 || (m2.m3 = {}));
+        })(m2.m3 || (m2.m3 = {}));
     })(m2 || (m2 = {}));
+    var m2;
 })(m1 || (m1 = {}));
+var m, m1;

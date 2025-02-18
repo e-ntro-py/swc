@@ -7,8 +7,7 @@ use swc_common::plugin::serialized::PluginSerializedBytes;
     feature = "__rkyv",
     derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)
 )]
-#[cfg_attr(feature = "__rkyv", archive(check_bytes))]
-#[cfg_attr(feature = "__rkyv", archive_attr(repr(C)))]
+#[cfg_attr(feature = "__rkyv", repr(C))]
 pub struct AllocatedBytesPtr(pub u32, pub u32);
 
 #[cfg(target_arch = "wasm32")]
@@ -51,6 +50,8 @@ where
     let (serialized_allocated_bytes_raw_ptr, serialized_allocated_bytes_raw_ptr_size) =
         serialized_allocated_bytes_ptr.as_ptr();
 
+    std::mem::forget(allocated_bytes_ptr); // We should not drop AllocatedBytesPtr(0, 0)
+
     let ret = f(serialized_allocated_bytes_raw_ptr as _);
 
     // Host fn call completes: by contract in host proxy, if return value is 0
@@ -90,12 +91,21 @@ pub fn read_returned_result_from_host<F, R>(f: F) -> Option<R>
 where
     F: FnOnce(u32) -> u32,
     R: rkyv::Archive,
-    R::Archived: rkyv::Deserialize<R, rkyv::de::deserializers::SharedDeserializeMap>,
+    R::Archived: rkyv::Deserialize<R, rancor::Strategy<rkyv::de::Pool, rancor::Error>>,
+    for<'a> R::Archived: bytecheck::CheckBytes<
+        rancor::Strategy<
+            rkyv::validation::Validator<
+                rkyv::validation::archive::ArchiveValidator<'a>,
+                rkyv::validation::shared::SharedValidator,
+            >,
+            rancor::Error,
+        >,
+    >,
 {
     let allocated_returned_value_ptr = read_returned_result_from_host_inner(f);
 
     // Using AllocatedBytesPtr's value, reconstruct actual return value
-    allocated_returned_value_ptr.map(|allocated_returned_value_ptr| unsafe {
+    allocated_returned_value_ptr.map(|allocated_returned_value_ptr| {
         PluginSerializedBytes::from_raw_ptr(
             allocated_returned_value_ptr.0 as _,
             allocated_returned_value_ptr

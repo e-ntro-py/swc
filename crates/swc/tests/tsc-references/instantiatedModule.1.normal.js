@@ -1,9 +1,8 @@
 //// [instantiatedModule.ts]
 // adding the var makes this an instantiated module
 import { _ as _class_call_check } from "@swc/helpers/_/_class_call_check";
-var M;
 (function(M) {
-    var Point = M.Point = 1;
+    M.Point = 1;
 })(M || (M = {}));
 // primary expression
 var m;
@@ -15,7 +14,6 @@ var p1;
 var p1;
 // making the point a class instead of an interface 
 // makes this an instantiated mmodule
-var M2;
 (function(M2) {
     var Point = /*#__PURE__*/ function() {
         "use strict";
@@ -43,13 +41,11 @@ var p2;
 var p2;
 var p2 = new m2.Point();
 var p2 = new M2.Point();
-var M3;
 (function(M3) {
-    var Color;
     (function(Color) {
         Color[Color["Blue"] = 0] = "Blue";
         Color[Color["Red"] = 1] = "Red";
-    })(Color = M3.Color || (M3.Color = {}));
+    })(M3.Color || (M3.Color = {}));
 })(M3 || (M3 = {}));
 var m3;
 var m3 = M3;
@@ -60,3 +56,4 @@ var blue = a3.Blue;
 var p3;
 var p3 = M3.Color.Red;
 var p3 = m3.Color.Blue;
+var M, M2, M3;

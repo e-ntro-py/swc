@@ -2,14 +2,14 @@
 import { _ as _class_call_check } from "@swc/helpers/_/_class_call_check";
 var x;
 x = 1;
-x = "";
+x = '';
 x = true;
-var E;
-(function(E) {
+var E = /*#__PURE__*/ function(E) {
     E[E["A"] = 0] = "A";
-})(E || (E = {}));
+    return E;
+}(E || {});
 x = E;
-x = E.A;
+x = 0;
 var C = function C() {
     "use strict";
     _class_call_check(this, C);
@@ -21,12 +21,12 @@ x = b;
 x = {
     f: function f() {}
 };
-var M;
 (function(M) {
-    var x = M.x = 1;
+    M.x = 1;
 })(M || (M = {}));
 x = M;
 function f(a) {
     x = a;
 }
 x = f;
+var M;

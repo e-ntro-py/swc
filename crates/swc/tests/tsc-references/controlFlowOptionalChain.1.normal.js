@@ -132,283 +132,269 @@ function f01(x1) {
     }
 }
 function f10(o1, value) {
-    var _o, _o1, _o2, _o3, _o4, _o5;
-    if (((_o = o1) === null || _o === void 0 ? void 0 : _o.foo) === value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.foo) === value) {
         o1.foo;
     }
-    if (((_o1 = o1) === null || _o1 === void 0 ? void 0 : _o1["foo"]) === value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1["foo"]) === value) {
         o1["foo"];
     }
-    if (((_o2 = o1) === null || _o2 === void 0 ? void 0 : _o2.bar()) === value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.bar()) === value) {
         o1.bar;
     }
-    if (((_o3 = o1) === null || _o3 === void 0 ? void 0 : _o3.foo) == value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.foo) == value) {
         o1.foo;
     }
-    if (((_o4 = o1) === null || _o4 === void 0 ? void 0 : _o4["foo"]) == value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1["foo"]) == value) {
         o1["foo"];
     }
-    if (((_o5 = o1) === null || _o5 === void 0 ? void 0 : _o5.bar()) == value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.bar()) == value) {
         o1.bar;
     }
 }
 function f11(o1, value) {
-    var _o, _o1, _o2, _o3, _o4, _o5;
-    if (((_o = o1) === null || _o === void 0 ? void 0 : _o.foo) === value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.foo) === value) {
         o1.foo;
     }
-    if (((_o1 = o1) === null || _o1 === void 0 ? void 0 : _o1["foo"]) === value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1["foo"]) === value) {
         o1["foo"];
     }
-    if (((_o2 = o1) === null || _o2 === void 0 ? void 0 : _o2.bar()) === value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.bar()) === value) {
         o1.bar;
     }
-    if (((_o3 = o1) === null || _o3 === void 0 ? void 0 : _o3.foo) == value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.foo) == value) {
         o1.foo;
     }
-    if (((_o4 = o1) === null || _o4 === void 0 ? void 0 : _o4["foo"]) == value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1["foo"]) == value) {
         o1["foo"];
     }
-    if (((_o5 = o1) === null || _o5 === void 0 ? void 0 : _o5.bar()) == value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.bar()) == value) {
         o1.bar;
     }
 }
 function f12(o1, value) {
-    var _o, _o1, _o2, _o3, _o4, _o5;
-    if (((_o = o1) === null || _o === void 0 ? void 0 : _o.foo) === value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.foo) === value) {
         o1.foo; // Error
     }
-    if (((_o1 = o1) === null || _o1 === void 0 ? void 0 : _o1["foo"]) === value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1["foo"]) === value) {
         o1["foo"]; // Error
     }
-    if (((_o2 = o1) === null || _o2 === void 0 ? void 0 : _o2.bar()) === value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.bar()) === value) {
         o1.bar; // Error
     }
-    if (((_o3 = o1) === null || _o3 === void 0 ? void 0 : _o3.foo) == value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.foo) == value) {
         o1.foo; // Error
     }
-    if (((_o4 = o1) === null || _o4 === void 0 ? void 0 : _o4["foo"]) == value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1["foo"]) == value) {
         o1["foo"]; // Error
     }
-    if (((_o5 = o1) === null || _o5 === void 0 ? void 0 : _o5.bar()) == value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.bar()) == value) {
         o1.bar; // Error
     }
 }
 function f12a(o1, value) {
-    var _o, _o1, _o2, _o3, _o4, _o5;
-    if (((_o = o1) === null || _o === void 0 ? void 0 : _o.foo) === value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.foo) === value) {
         o1.foo;
     }
-    if (((_o1 = o1) === null || _o1 === void 0 ? void 0 : _o1["foo"]) === value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1["foo"]) === value) {
         o1["foo"];
     }
-    if (((_o2 = o1) === null || _o2 === void 0 ? void 0 : _o2.bar()) === value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.bar()) === value) {
         o1.bar;
     }
-    if (((_o3 = o1) === null || _o3 === void 0 ? void 0 : _o3.foo) == value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.foo) == value) {
         o1.foo; // Error
     }
-    if (((_o4 = o1) === null || _o4 === void 0 ? void 0 : _o4["foo"]) == value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1["foo"]) == value) {
         o1["foo"]; // Error
     }
-    if (((_o5 = o1) === null || _o5 === void 0 ? void 0 : _o5.bar()) == value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.bar()) == value) {
         o1.bar; // Error
     }
 }
 function f13(o1) {
-    var _o, _o1, _o2, _o3, _o4, _o5;
-    if (((_o = o1) === null || _o === void 0 ? void 0 : _o.foo) !== undefined) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.foo) !== undefined) {
         o1.foo;
     }
-    if (((_o1 = o1) === null || _o1 === void 0 ? void 0 : _o1["foo"]) !== undefined) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1["foo"]) !== undefined) {
         o1["foo"];
     }
-    if (((_o2 = o1) === null || _o2 === void 0 ? void 0 : _o2.bar()) !== undefined) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.bar()) !== undefined) {
         o1.bar;
     }
-    if (((_o3 = o1) === null || _o3 === void 0 ? void 0 : _o3.foo) != undefined) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.foo) != undefined) {
         o1.foo;
     }
-    if (((_o4 = o1) === null || _o4 === void 0 ? void 0 : _o4["foo"]) != undefined) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1["foo"]) != undefined) {
         o1["foo"];
     }
-    if (((_o5 = o1) === null || _o5 === void 0 ? void 0 : _o5.bar()) != undefined) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.bar()) != undefined) {
         o1.bar;
     }
 }
 function f13a(o1) {
-    var _o, _o1, _o2, _o3, _o4, _o5;
-    if (((_o = o1) === null || _o === void 0 ? void 0 : _o.foo) !== null) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.foo) !== null) {
         o1.foo; // Error
     }
-    if (((_o1 = o1) === null || _o1 === void 0 ? void 0 : _o1["foo"]) !== null) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1["foo"]) !== null) {
         o1["foo"]; // Error
     }
-    if (((_o2 = o1) === null || _o2 === void 0 ? void 0 : _o2.bar()) !== null) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.bar()) !== null) {
         o1.bar; // Error
     }
-    if (((_o3 = o1) === null || _o3 === void 0 ? void 0 : _o3.foo) != null) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.foo) != null) {
         o1.foo;
     }
-    if (((_o4 = o1) === null || _o4 === void 0 ? void 0 : _o4["foo"]) != null) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1["foo"]) != null) {
         o1["foo"];
     }
-    if (((_o5 = o1) === null || _o5 === void 0 ? void 0 : _o5.bar()) != null) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.bar()) != null) {
         o1.bar;
     }
 }
 function f14(o1) {
-    var _o, _o1, _o2;
-    if (((_o = o1) === null || _o === void 0 ? void 0 : _o.foo) !== undefined) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.foo) !== undefined) {
         o1.foo;
     }
-    if (((_o1 = o1) === null || _o1 === void 0 ? void 0 : _o1["foo"]) !== undefined) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1["foo"]) !== undefined) {
         o1["foo"];
     }
-    if (((_o2 = o1) === null || _o2 === void 0 ? void 0 : _o2.bar()) !== undefined) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.bar()) !== undefined) {
         o1.bar;
     }
 }
 function f15(o1, value) {
-    var _o, _o1, _o2, _o3;
-    if (((_o = o1) === null || _o === void 0 ? void 0 : _o.foo) === value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.foo) === value) {
         o1.foo;
     } else {
         o1.foo; // Error
     }
-    if (((_o1 = o1) === null || _o1 === void 0 ? void 0 : _o1.foo) !== value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.foo) !== value) {
         o1.foo; // Error
     } else {
         o1.foo;
     }
-    if (((_o2 = o1) === null || _o2 === void 0 ? void 0 : _o2.foo) == value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.foo) == value) {
         o1.foo;
     } else {
         o1.foo; // Error
     }
-    if (((_o3 = o1) === null || _o3 === void 0 ? void 0 : _o3.foo) != value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.foo) != value) {
         o1.foo; // Error
     } else {
         o1.foo;
     }
 }
 function f15a(o1, value) {
-    var _o, _o1, _o2, _o3;
-    if (((_o = o1) === null || _o === void 0 ? void 0 : _o.foo) === value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.foo) === value) {
         o1.foo; // Error
     } else {
         o1.foo; // Error
     }
-    if (((_o1 = o1) === null || _o1 === void 0 ? void 0 : _o1.foo) !== value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.foo) !== value) {
         o1.foo; // Error
     } else {
         o1.foo; // Error
     }
-    if (((_o2 = o1) === null || _o2 === void 0 ? void 0 : _o2.foo) == value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.foo) == value) {
         o1.foo; // Error
     } else {
         o1.foo; // Error
     }
-    if (((_o3 = o1) === null || _o3 === void 0 ? void 0 : _o3.foo) != value) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.foo) != value) {
         o1.foo; // Error
     } else {
         o1.foo; // Error
     }
 }
 function f16(o1) {
-    var _o, _o1, _o2, _o3;
-    if (((_o = o1) === null || _o === void 0 ? void 0 : _o.foo) === undefined) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.foo) === undefined) {
         o1.foo; // Error
     } else {
         o1.foo;
     }
-    if (((_o1 = o1) === null || _o1 === void 0 ? void 0 : _o1.foo) !== undefined) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.foo) !== undefined) {
         o1.foo;
     } else {
         o1.foo; // Error
     }
-    if (((_o2 = o1) === null || _o2 === void 0 ? void 0 : _o2.foo) == undefined) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.foo) == undefined) {
         o1.foo; // Error
     } else {
         o1.foo;
     }
-    if (((_o3 = o1) === null || _o3 === void 0 ? void 0 : _o3.foo) != undefined) {
+    if ((o1 === null || o1 === void 0 ? void 0 : o1.foo) != undefined) {
         o1.foo;
     } else {
         o1.foo; // Error
     }
 }
 function f20(o1) {
-    var _o, _o1, _o2, _o3;
-    if (typeof ((_o = o1) === null || _o === void 0 ? void 0 : _o.foo) === "number") {
+    if (typeof (o1 === null || o1 === void 0 ? void 0 : o1.foo) === "number") {
         o1.foo;
     }
-    if (typeof ((_o1 = o1) === null || _o1 === void 0 ? void 0 : _o1["foo"]) === "number") {
+    if (typeof (o1 === null || o1 === void 0 ? void 0 : o1["foo"]) === "number") {
         o1["foo"];
     }
-    if (typeof ((_o2 = o1) === null || _o2 === void 0 ? void 0 : _o2.bar()) === "number") {
+    if (typeof (o1 === null || o1 === void 0 ? void 0 : o1.bar()) === "number") {
         o1.bar;
     }
-    if (_instanceof((_o3 = o1) === null || _o3 === void 0 ? void 0 : _o3.baz, Error)) {
+    if (_instanceof(o1 === null || o1 === void 0 ? void 0 : o1.baz, Error)) {
         o1.baz;
     }
 }
 function f21(o1) {
-    var _o, _o1, _o2, _o3;
-    if (typeof ((_o = o1) === null || _o === void 0 ? void 0 : _o.foo) === "number") {
+    if (typeof (o1 === null || o1 === void 0 ? void 0 : o1.foo) === "number") {
         o1.foo;
     }
-    if (typeof ((_o1 = o1) === null || _o1 === void 0 ? void 0 : _o1["foo"]) === "number") {
+    if (typeof (o1 === null || o1 === void 0 ? void 0 : o1["foo"]) === "number") {
         o1["foo"];
     }
-    if (typeof ((_o2 = o1) === null || _o2 === void 0 ? void 0 : _o2.bar()) === "number") {
+    if (typeof (o1 === null || o1 === void 0 ? void 0 : o1.bar()) === "number") {
         o1.bar;
     }
-    if (_instanceof((_o3 = o1) === null || _o3 === void 0 ? void 0 : _o3.baz, Error)) {
+    if (_instanceof(o1 === null || o1 === void 0 ? void 0 : o1.baz, Error)) {
         o1.baz;
     }
 }
 function f22(o1) {
-    var _o, _o1, _o2, _o3;
-    if (typeof ((_o = o1) === null || _o === void 0 ? void 0 : _o.foo) === "number") {
+    if (typeof (o1 === null || o1 === void 0 ? void 0 : o1.foo) === "number") {
         o1.foo;
     } else {
         o1.foo; // Error
     }
-    if (typeof ((_o1 = o1) === null || _o1 === void 0 ? void 0 : _o1.foo) !== "number") {
+    if (typeof (o1 === null || o1 === void 0 ? void 0 : o1.foo) !== "number") {
         o1.foo; // Error
     } else {
         o1.foo;
     }
-    if (typeof ((_o2 = o1) === null || _o2 === void 0 ? void 0 : _o2.foo) == "number") {
+    if (typeof (o1 === null || o1 === void 0 ? void 0 : o1.foo) == "number") {
         o1.foo;
     } else {
         o1.foo; // Error
     }
-    if (typeof ((_o3 = o1) === null || _o3 === void 0 ? void 0 : _o3.foo) != "number") {
+    if (typeof (o1 === null || o1 === void 0 ? void 0 : o1.foo) != "number") {
         o1.foo; // Error
     } else {
         o1.foo;
     }
 }
 function f23(o1) {
-    var _o, _o1, _o2, _o3;
-    if (typeof ((_o = o1) === null || _o === void 0 ? void 0 : _o.foo) === "undefined") {
+    if (typeof (o1 === null || o1 === void 0 ? void 0 : o1.foo) === "undefined") {
         o1.foo; // Error
     } else {
         o1.foo;
     }
-    if (typeof ((_o1 = o1) === null || _o1 === void 0 ? void 0 : _o1.foo) !== "undefined") {
+    if (typeof (o1 === null || o1 === void 0 ? void 0 : o1.foo) !== "undefined") {
         o1.foo;
     } else {
         o1.foo; // Error
     }
-    if (typeof ((_o2 = o1) === null || _o2 === void 0 ? void 0 : _o2.foo) == "undefined") {
+    if (typeof (o1 === null || o1 === void 0 ? void 0 : o1.foo) == "undefined") {
         o1.foo; // Error
     } else {
         o1.foo;
     }
-    if (typeof ((_o3 = o1) === null || _o3 === void 0 ? void 0 : _o3.foo) != "undefined") {
+    if (typeof (o1 === null || o1 === void 0 ? void 0 : o1.foo) != "undefined") {
         o1.foo;
     } else {
         o1.foo; // Error
@@ -416,29 +402,24 @@ function f23(o1) {
 }
 function f30(o1) {
     if (!!true) {
-        var _o;
-        assert((_o = o1) === null || _o === void 0 ? void 0 : _o.foo);
+        assert(o1 === null || o1 === void 0 ? void 0 : o1.foo);
         o1.foo;
     }
     if (!!true) {
-        var _o1;
-        assert(((_o1 = o1) === null || _o1 === void 0 ? void 0 : _o1.foo) === 42);
+        assert((o1 === null || o1 === void 0 ? void 0 : o1.foo) === 42);
         o1.foo;
     }
     if (!!true) {
-        var _o2;
-        assert(typeof ((_o2 = o1) === null || _o2 === void 0 ? void 0 : _o2.foo) === "number");
+        assert(typeof (o1 === null || o1 === void 0 ? void 0 : o1.foo) === "number");
         o1.foo;
     }
     if (!!true) {
-        var _o3;
-        assertNonNull((_o3 = o1) === null || _o3 === void 0 ? void 0 : _o3.foo);
+        assertNonNull(o1 === null || o1 === void 0 ? void 0 : o1.foo);
         o1.foo;
     }
 }
 function f40(o1) {
-    var _o;
-    switch((_o = o1) === null || _o === void 0 ? void 0 : _o.foo){
+    switch(o1 === null || o1 === void 0 ? void 0 : o1.foo){
         case "abc":
             o1.foo;
             break;
@@ -454,8 +435,7 @@ function f40(o1) {
     }
 }
 function f41(o1) {
-    var _o;
-    switch(_type_of((_o = o1) === null || _o === void 0 ? void 0 : _o.foo)){
+    switch(_type_of(o1 === null || o1 === void 0 ? void 0 : o1.foo)){
         case "string":
             o1.foo;
             break;
@@ -471,11 +451,10 @@ function f41(o1) {
     }
 }
 function getArea(shape) {
-    var _shape;
-    switch((_shape = shape) === null || _shape === void 0 ? void 0 : _shape.type){
-        case "circle":
+    switch(shape === null || shape === void 0 ? void 0 : shape.type){
+        case 'circle':
             return Math.PI * Math.pow(shape.radius, 2);
-        case "rectangle":
+        case 'rectangle':
             return shape.width * shape.height;
         default:
             return 0;
@@ -483,19 +462,17 @@ function getArea(shape) {
 }
 function extractCoordinates(f1) {
     var _f_geometry;
-    if (((_f_geometry = f1.geometry) === null || _f_geometry === void 0 ? void 0 : _f_geometry.type) !== "test") {
+    if (((_f_geometry = f1.geometry) === null || _f_geometry === void 0 ? void 0 : _f_geometry.type) !== 'test') {
         return [];
     }
     return f1.geometry.coordinates;
 }
 var lastSomeProperty;
 function someFunction(someOptionalObject) {
-    var _someOptionalObject;
-    if (((_someOptionalObject = someOptionalObject) === null || _someOptionalObject === void 0 ? void 0 : _someOptionalObject.someProperty) !== lastSomeProperty) {
-        var _someOptionalObject1;
+    if ((someOptionalObject === null || someOptionalObject === void 0 ? void 0 : someOptionalObject.someProperty) !== lastSomeProperty) {
         console.log(someOptionalObject);
         console.log(someOptionalObject.someProperty); // Error
-        lastSomeProperty = (_someOptionalObject1 = someOptionalObject) === null || _someOptionalObject1 === void 0 ? void 0 : _someOptionalObject1.someProperty;
+        lastSomeProperty = someOptionalObject === null || someOptionalObject === void 0 ? void 0 : someOptionalObject.someProperty;
     }
 }
 var someObject = {

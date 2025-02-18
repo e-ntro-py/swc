@@ -1,28 +1,24 @@
-use std::{
-    collections::{hash_map::Entry, HashSet},
-    hash::BuildHasherDefault,
-};
+use std::collections::hash_map::Entry;
 
 use indexmap::IndexSet;
-use rustc_hash::{FxHashMap, FxHashSet, FxHasher};
+use rustc_hash::{FxBuildHasher, FxHashMap};
 use swc_atoms::JsWord;
-use swc_common::{
-    collections::{AHashMap, AHashSet},
-    SyntaxContext,
-};
+use swc_common::SyntaxContext;
 use swc_ecma_ast::*;
 use swc_ecma_usage_analyzer::{
     alias::{Access, AccessKind},
     analyzer::{
         analyze_with_storage,
         storage::{ScopeDataLike, Storage, VarDataLike},
-        CalleeKind, Ctx, ScopeKind, UsageAnalyzer,
+        Ctx, ScopeKind, UsageAnalyzer,
     },
     marks::Marks,
+    util::is_global_var_with_pure_property_access,
 };
+use swc_ecma_utils::{Merge, Type, Value};
 use swc_ecma_visit::VisitWith;
 
-pub(crate) fn analyze<N>(n: &N, _module_info: &ModuleInfo, marks: Option<Marks>) -> ProgramData
+pub(crate) fn analyze<N>(n: &N, marks: Option<Marks>) -> ProgramData
 where
     N: VisitWith<UsageAnalyzer<ProgramData>>,
 {
@@ -32,13 +28,13 @@ where
 /// Analyzed info of a whole program we are working on.
 #[derive(Debug, Default)]
 pub(crate) struct ProgramData {
-    pub(crate) vars: FxHashMap<Id, VarUsageInfo>,
+    pub(crate) vars: FxHashMap<Id, Box<VarUsageInfo>>,
 
     pub(crate) top: ScopeData,
 
     pub(crate) scopes: FxHashMap<SyntaxContext, ScopeData>,
 
-    initialized_vars: IndexSet<Id, ahash::RandomState>,
+    initialized_vars: IndexSet<Id, FxBuildHasher>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -46,15 +42,6 @@ pub(crate) struct ScopeData {
     pub(crate) has_with_stmt: bool,
     pub(crate) has_eval_call: bool,
     pub(crate) used_arguments: bool,
-}
-
-#[derive(Debug, Default)]
-pub(crate) struct ModuleInfo {
-    /// Imported identifiers which should be treated as a black box.
-    ///
-    /// Imports from `@swc/helpers` are excluded as helpers are not modified by
-    /// accessing/calling other modules.
-    pub(crate) blackbox_imports: AHashSet<Id>,
 }
 
 #[derive(Debug, Clone)]
@@ -76,8 +63,8 @@ pub(crate) struct VarUsageInfo {
 
     pub(crate) declared_as_for_init: bool,
 
+    /// The number of assign and initialization to this identifier.
     pub(crate) assign_count: u32,
-    pub(crate) mutation_by_call_count: u32,
 
     /// The number of direct and indirect reference to this identifier.
     /// ## Things to note
@@ -86,12 +73,10 @@ pub(crate) struct VarUsageInfo {
     pub(crate) usage_count: u32,
 
     /// The variable itself is assigned after reference.
-    reassigned: bool,
-    /// The variable itself or a property of it is modified.
-    pub(crate) mutated: bool,
+    pub(crate) reassigned: bool,
 
     pub(crate) has_property_access: bool,
-    pub(crate) has_property_mutation: bool,
+    pub(crate) property_mutation_count: u32,
 
     pub(crate) exported: bool,
     /// True if used **above** the declaration or in init. (Not eval order).
@@ -111,12 +96,16 @@ pub(crate) struct VarUsageInfo {
 
     pub(crate) var_kind: Option<VarDeclKind>,
     pub(crate) var_initialized: bool,
+    pub(crate) merged_var_type: Option<Value<Type>>,
 
     pub(crate) declared_as_catch_param: bool,
 
     pub(crate) no_side_effect_for_member_access: bool,
 
     pub(crate) callee_count: u32,
+
+    /// `a` in `foo(a)` or `foo({ a })`.
+    pub(crate) used_as_ref: bool,
 
     pub(crate) used_as_arg: bool,
 
@@ -131,7 +120,7 @@ pub(crate) struct VarUsageInfo {
     /// PR. (because it's hard to review)
     infects_to: Vec<Access>,
     /// Only **string** properties.
-    pub(crate) accessed_props: Box<AHashMap<JsWord, u32>>,
+    pub(crate) accessed_props: Box<FxHashMap<JsWord, u32>>,
 
     pub(crate) used_recursively: bool,
 }
@@ -148,12 +137,10 @@ impl Default for VarUsageInfo {
             declared_as_fn_expr: Default::default(),
             declared_as_for_init: Default::default(),
             assign_count: Default::default(),
-            mutation_by_call_count: Default::default(),
             usage_count: Default::default(),
             reassigned: Default::default(),
-            mutated: Default::default(),
             has_property_access: Default::default(),
-            has_property_mutation: Default::default(),
+            property_mutation_count: Default::default(),
             exported: Default::default(),
             used_above_decl: Default::default(),
             is_fn_local: true,
@@ -161,6 +148,7 @@ impl Default for VarUsageInfo {
             used_in_cond: Default::default(),
             var_kind: Default::default(),
             var_initialized: Default::default(),
+            merged_var_type: Default::default(),
             declared_as_catch_param: Default::default(),
             no_side_effect_for_member_access: Default::default(),
             callee_count: Default::default(),
@@ -173,35 +161,28 @@ impl Default for VarUsageInfo {
             used_recursively: Default::default(),
             is_top_level: Default::default(),
             assigned_fn_local: true,
+            used_as_ref: false,
         }
     }
 }
 
 impl VarUsageInfo {
-    pub(crate) fn is_mutated_only_by_one_call(&self) -> bool {
-        self.assign_count == 0 && self.mutation_by_call_count == 1
-    }
-
     pub(crate) fn is_infected(&self) -> bool {
         !self.infects_to.is_empty()
     }
 
-    pub(crate) fn reassigned(&self) -> bool {
-        self.reassigned
-            || (u32::from(self.var_initialized)
-                + u32::from(self.declared_as_catch_param)
-                + u32::from(self.declared_as_fn_param)
-                + self.assign_count)
-                > 1
-    }
-
-    pub(crate) fn can_inline_var(&self) -> bool {
-        !self.mutated || (self.assign_count == 0 && !self.reassigned())
+    /// The variable itself or a property of it is modified.
+    pub(crate) fn mutated(&self) -> bool {
+        self.assign_count > 1 || self.property_mutation_count > 0
     }
 
     pub(crate) fn can_inline_fn_once(&self) -> bool {
         self.callee_count > 0
             || !self.executed_multiple_time && (self.is_fn_local || !self.used_in_non_child_fn)
+    }
+
+    fn initialized(&self) -> bool {
+        self.var_initialized || self.declared_as_fn_param || self.declared_as_catch_param
     }
 }
 
@@ -242,9 +223,16 @@ impl Storage for ProgramData {
                     let var_assigned = var_info.assign_count > 0
                         || (var_info.var_initialized && !e.get().var_initialized);
 
+                    if var_info.assign_count > 0 {
+                        if e.get().initialized() {
+                            e.get_mut().reassigned = true
+                        }
+                    }
+
                     if var_info.var_initialized {
+                        // If it is inited in some other child scope and also inited in current
+                        // scope
                         if e.get().var_initialized || e.get().ref_count > 0 {
-                            e.get_mut().assign_count += 1;
                             e.get_mut().reassigned = true;
                         } else {
                             // If it is referred outside child scope, it will
@@ -255,18 +243,19 @@ impl Storage for ProgramData {
                         // If it is inited in some other child scope, but referenced in
                         // current child scope
                         if !inited && e.get().var_initialized && var_info.ref_count > 0 {
+                            e.get_mut().var_initialized = false;
                             e.get_mut().reassigned = true
                         }
                     }
+
+                    e.get_mut().merged_var_type.merge(var_info.merged_var_type);
 
                     e.get_mut().ref_count += var_info.ref_count;
 
                     e.get_mut().reassigned |= var_info.reassigned;
 
-                    e.get_mut().mutated |= var_info.mutated;
-
                     e.get_mut().has_property_access |= var_info.has_property_access;
-                    e.get_mut().has_property_mutation |= var_info.has_property_mutation;
+                    e.get_mut().property_mutation_count |= var_info.property_mutation_count;
                     e.get_mut().exported |= var_info.exported;
 
                     e.get_mut().declared |= var_info.declared;
@@ -283,7 +272,6 @@ impl Storage for ProgramData {
                     e.get_mut().executed_multiple_time |= var_info.executed_multiple_time;
                     e.get_mut().used_in_cond |= var_info.used_in_cond;
                     e.get_mut().assign_count += var_info.assign_count;
-                    e.get_mut().mutation_by_call_count += var_info.mutation_by_call_count;
                     e.get_mut().usage_count += var_info.usage_count;
 
                     e.get_mut().infects_to.extend(var_info.infects_to);
@@ -294,6 +282,7 @@ impl Storage for ProgramData {
 
                     e.get_mut().callee_count += var_info.callee_count;
                     e.get_mut().used_as_arg |= var_info.used_as_arg;
+                    e.get_mut().used_as_ref |= var_info.used_as_ref;
                     e.get_mut().indexed_with_dynamic_key |= var_info.indexed_with_dynamic_key;
 
                     e.get_mut().pure_fn |= var_info.pure_fn;
@@ -321,7 +310,7 @@ impl Storage for ProgramData {
                             }
                         }
                         ScopeKind::Block => {
-                            if var_info.used_in_non_child_fn {
+                            if e.get().used_in_non_child_fn {
                                 e.get_mut().is_fn_local = false;
                                 e.get_mut().used_in_non_child_fn = true;
                             }
@@ -343,15 +332,86 @@ impl Storage for ProgramData {
         }
     }
 
-    fn report_usage(&mut self, ctx: Ctx, i: &Ident, is_assign: bool) {
-        self.report(i.to_id(), ctx, is_assign, &mut Default::default());
+    fn report_usage(&mut self, ctx: Ctx, i: Id) {
+        let inited = self.initialized_vars.contains(&i);
+
+        let e = self.vars.entry(i.clone()).or_insert_with(|| {
+            Box::new(VarUsageInfo {
+                used_above_decl: true,
+                ..Default::default()
+            })
+        });
+
+        e.used_as_ref |= ctx.is_id_ref;
+        e.ref_count += 1;
+        e.usage_count += 1;
+        // If it is inited in some child scope, but referenced in current scope
+        if !inited && e.var_initialized {
+            e.reassigned = true;
+            e.var_initialized = false;
+        }
+
+        e.inline_prevented |= ctx.inline_prevented;
+        e.executed_multiple_time |= ctx.executed_multiple_time;
+        e.used_in_cond |= ctx.in_cond;
+    }
+
+    fn report_assign(&mut self, ctx: Ctx, i: Id, is_op: bool, ty: Value<Type>) {
+        let e = self.vars.entry(i.clone()).or_default();
+
+        let inited = self.initialized_vars.contains(&i);
+
+        if e.assign_count > 0 || e.initialized() {
+            e.reassigned = true
+        }
+
+        e.merged_var_type.merge(Some(ty));
+        e.assign_count += 1;
+
+        if !is_op {
+            self.initialized_vars.insert(i.clone());
+            if e.ref_count == 1 && e.var_kind != Some(VarDeclKind::Const) && !inited {
+                e.var_initialized = true;
+            } else {
+                e.reassigned = true;
+            }
+
+            if e.ref_count == 1 && e.used_above_decl {
+                e.used_above_decl = false;
+            }
+
+            e.usage_count = e.usage_count.saturating_sub(1);
+        }
+
+        let mut to_visit: IndexSet<Id, FxBuildHasher> =
+            IndexSet::from_iter(e.infects_to.iter().cloned().map(|i| i.0));
+
+        let mut idx = 0;
+
+        while idx < to_visit.len() {
+            let curr = &to_visit[idx];
+
+            if let Some(usage) = self.vars.get_mut(curr) {
+                usage.inline_prevented |= ctx.inline_prevented;
+                usage.executed_multiple_time |= ctx.executed_multiple_time;
+                usage.used_in_cond |= ctx.in_cond;
+
+                if is_op {
+                    usage.usage_count += 1;
+                }
+
+                to_visit.extend(usage.infects_to.iter().cloned().map(|i| i.0))
+            }
+
+            idx += 1;
+        }
     }
 
     fn declare_decl(
         &mut self,
         ctx: Ctx,
         i: &Ident,
-        has_init: bool,
+        init_type: Option<Value<Type>>,
         kind: Option<VarDeclKind>,
     ) -> &mut VarUsageInfo {
         // if cfg!(feature = "debug") {
@@ -361,14 +421,17 @@ impl Storage for ProgramData {
         let v = self.vars.entry(i.to_id()).or_default();
         v.is_top_level |= ctx.is_top_level;
 
-        if has_init && (v.declared || v.var_initialized) {
-            #[cfg(feature = "debug")]
-            {
-                tracing::trace!("declare_decl(`{}`): Already declared", i);
+        // assigned or declared before this declaration
+        if init_type.is_some() {
+            if v.declared || v.var_initialized || v.assign_count > 0 {
+                #[cfg(feature = "debug")]
+                {
+                    tracing::trace!("declare_decl(`{}`): Already declared", i);
+                }
+
+                v.reassigned = true;
             }
 
-            v.mutated = true;
-            v.reassigned = true;
             v.assign_count += 1;
         }
 
@@ -382,12 +445,18 @@ impl Storage for ProgramData {
             v.is_fn_local = false;
         }
 
-        v.var_initialized |= has_init;
+        v.var_initialized |= init_type.is_some();
+
+        if ctx.in_pat_of_param {
+            v.merged_var_type = Some(Value::Unknown);
+        } else {
+            v.merged_var_type.merge(init_type);
+        }
 
         v.declared_count += 1;
         v.declared = true;
         // not a VarDecl, thus always inited
-        if has_init || kind.is_none() {
+        if init_type.is_some() || kind.is_none() {
             self.initialized_vars.insert(i.to_id());
         }
         v.declared_as_catch_param |= ctx.in_catch_param;
@@ -403,28 +472,21 @@ impl Storage for ProgramData {
         self.initialized_vars.truncate(len)
     }
 
-    fn mark_property_mutattion(&mut self, id: Id, ctx: Ctx) {
+    fn mark_property_mutation(&mut self, id: Id) {
         let e = self.vars.entry(id).or_default();
-        e.has_property_mutation = true;
+        e.property_mutation_count += 1;
 
-        let mut to_mark_mutate = Vec::new();
-        for (other, kind) in &e.infects_to {
-            if *kind == AccessKind::Reference {
-                to_mark_mutate.push(other.clone())
-            }
-        }
+        let to_mark_mutate = e
+            .infects_to
+            .iter()
+            .filter(|(_, kind)| *kind == AccessKind::Reference)
+            .map(|(id, _)| id.clone())
+            .collect::<Vec<_>>();
 
         for other in to_mark_mutate {
-            let other = self.vars.entry(other).or_insert_with(|| {
-                let simple_assign = ctx.is_exact_reassignment && !ctx.is_op_assign;
+            let other = self.vars.entry(other).or_default();
 
-                VarUsageInfo {
-                    used_above_decl: !simple_assign,
-                    ..Default::default()
-                }
-            });
-
-            other.has_property_mutation = true;
+            other.property_mutation_count += 1;
         }
     }
 }
@@ -477,6 +539,7 @@ impl VarDataLike for VarUsageInfo {
     }
 
     fn mark_used_as_arg(&mut self) {
+        self.used_as_ref = true;
         self.used_as_arg = true
     }
 
@@ -488,12 +551,8 @@ impl VarDataLike for VarUsageInfo {
         *self.accessed_props.entry(name).or_default() += 1;
     }
 
-    fn mark_mutated(&mut self) {
-        self.mutated = true;
-    }
-
-    fn mark_reassigned(&mut self) {
-        self.reassigned = true;
+    fn mark_used_as_ref(&mut self) {
+        self.used_as_ref = true;
     }
 
     fn add_infects_to(&mut self, other: Access) {
@@ -502,6 +561,10 @@ impl VarDataLike for VarUsageInfo {
 
     fn prevent_inline(&mut self) {
         self.inline_prevented = true;
+    }
+
+    fn mark_as_exported(&mut self) {
+        self.exported = true;
     }
 
     fn mark_initialized_with_safe_value(&mut self) {
@@ -522,78 +585,10 @@ impl VarDataLike for VarUsageInfo {
 }
 
 impl ProgramData {
-    pub(crate) fn expand_infected(
-        &self,
-        module_info: &ModuleInfo,
-        ids: FxHashSet<Access>,
-        max_num: usize,
-    ) -> Option<FxHashSet<Access>> {
-        let init =
-            HashSet::with_capacity_and_hasher(max_num, BuildHasherDefault::<FxHasher>::default());
-        ids.into_iter()
-            .try_fold(init, |mut res, id| {
-                let mut ids = Vec::with_capacity(max_num);
-                ids.push(id);
-                let mut ranges = vec![0..1usize];
-                loop {
-                    let range = ranges.remove(0);
-                    for index in range {
-                        let iid = ids.get(index).unwrap();
-
-                        // Abort on imported variables, because we can't analyze them
-                        if module_info.blackbox_imports.contains(&iid.0) {
-                            return Err(());
-                        }
-                        if !res.insert(iid.clone()) {
-                            continue;
-                        }
-                        if res.len() >= max_num {
-                            return Err(());
-                        }
-                        if let Some(info) = self.vars.get(&iid.0) {
-                            let infects = &info.infects_to;
-                            if !infects.is_empty() {
-                                let old_len = ids.len();
-
-                                // This is not a call, so effects from call can be skipped
-                                let can_skip_non_call = matches!(iid.1, AccessKind::Reference)
-                                    || (info.declared_count == 1
-                                        && info.declared_as_fn_decl
-                                        && !info.reassigned());
-
-                                if can_skip_non_call {
-                                    ids.extend(
-                                        infects
-                                            .iter()
-                                            .filter(|(_, kind)| *kind != AccessKind::Call)
-                                            .cloned(),
-                                    );
-                                } else {
-                                    ids.extend_from_slice(infects.as_slice());
-                                }
-                                let new_len = ids.len();
-                                ranges.push(old_len..new_len);
-                            }
-                        }
-                    }
-                    if ranges.is_empty() {
-                        break;
-                    }
-                }
-                Ok(res)
-            })
-            .ok()
-    }
-
+    /// This should be used only for conditionals pass.
     pub(crate) fn contains_unresolved(&self, e: &Expr) -> bool {
         match e {
-            Expr::Ident(i) => {
-                if let Some(v) = self.vars.get(&i.to_id()) {
-                    return !v.declared;
-                }
-
-                true
-            }
+            Expr::Ident(i) => self.ident_is_unresolved(i),
 
             Expr::Member(MemberExpr { obj, prop, .. }) => {
                 if self.contains_unresolved(obj) {
@@ -608,6 +603,42 @@ impl ProgramData {
 
                 false
             }
+            Expr::Bin(BinExpr { left, right, .. }) => {
+                self.contains_unresolved(left) || self.contains_unresolved(right)
+            }
+            Expr::Unary(UnaryExpr { arg, .. }) => self.contains_unresolved(arg),
+            Expr::Update(UpdateExpr { arg, .. }) => self.contains_unresolved(arg),
+            Expr::Seq(SeqExpr { exprs, .. }) => exprs.iter().any(|e| self.contains_unresolved(e)),
+            Expr::Assign(AssignExpr { left, right, .. }) => {
+                // TODO
+                (match left {
+                    AssignTarget::Simple(left) => {
+                        self.simple_assign_target_contains_unresolved(left)
+                    }
+                    AssignTarget::Pat(_) => false,
+                }) || self.contains_unresolved(right)
+            }
+            Expr::Cond(CondExpr {
+                test, cons, alt, ..
+            }) => {
+                self.contains_unresolved(test)
+                    || self.contains_unresolved(cons)
+                    || self.contains_unresolved(alt)
+            }
+            Expr::New(NewExpr { args, .. }) => args.iter().flatten().any(|arg| match arg.spread {
+                Some(..) => self.contains_unresolved(&arg.expr),
+                None => false,
+            }),
+            Expr::Yield(YieldExpr { arg, .. }) => {
+                matches!(arg, Some(arg) if self.contains_unresolved(arg))
+            }
+            Expr::Tpl(Tpl { exprs, .. }) => exprs.iter().any(|e| self.contains_unresolved(e)),
+            Expr::Paren(ParenExpr { expr, .. }) => self.contains_unresolved(expr),
+            Expr::Await(AwaitExpr { arg, .. }) => self.contains_unresolved(arg),
+            Expr::Array(ArrayLit { elems, .. }) => elems.iter().any(|elem| match elem {
+                Some(elem) => self.contains_unresolved(&elem.expr),
+                None => false,
+            }),
 
             Expr::Call(CallExpr {
                 callee: Callee::Expr(callee),
@@ -625,90 +656,79 @@ impl ProgramData {
                 false
             }
 
+            Expr::OptChain(o) => self.opt_chain_expr_contains_unresolved(o),
+
             _ => false,
         }
     }
-}
 
-impl ProgramData {
-    fn report(&mut self, i: Id, ctx: Ctx, is_modify: bool, dejavu: &mut AHashSet<Id>) {
-        // trace!("report({}{:?})", i.0, i.1);
-
-        let is_first = dejavu.is_empty();
-
-        if !dejavu.insert(i.clone()) {
-            return;
+    pub(crate) fn ident_is_unresolved(&self, i: &Ident) -> bool {
+        // We treat `window` and `global` as resolved
+        if is_global_var_with_pure_property_access(&i.sym)
+            || matches!(&*i.sym, "arguments" | "window" | "global")
+        {
+            return false;
         }
 
-        let inited = self.initialized_vars.contains(&i);
+        if let Some(v) = self.vars.get(&i.to_id()) {
+            return !v.declared;
+        }
 
-        let e = self.vars.entry(i.clone()).or_insert_with(|| {
-            // trace!("insert({}{:?})", i.0, i.1);
+        true
+    }
 
-            let simple_assign = ctx.is_exact_reassignment && !ctx.is_op_assign;
-
-            VarUsageInfo {
-                used_above_decl: !simple_assign,
-                ..Default::default()
-            }
-        });
-
-        e.inline_prevented |= ctx.inline_prevented;
-
-        if is_first {
-            e.ref_count += 1;
-            // If it is inited in some child scope, but referenced in current scope
-            if !inited && e.var_initialized {
-                e.reassigned = true;
-                if !is_modify {
-                    e.var_initialized = false;
-                    e.assign_count += 1;
+    fn opt_chain_expr_contains_unresolved(&self, o: &OptChainExpr) -> bool {
+        match &*o.base {
+            OptChainBase::Member(me) => self.member_expr_contains_unresolved(me),
+            OptChainBase::Call(OptCall { callee, args, .. }) => {
+                if self.contains_unresolved(callee) {
+                    return true;
                 }
-            }
-        }
 
-        let call_may_mutate = ctx.in_call_arg_of == Some(CalleeKind::Unknown);
-
-        // Passing object as a argument is possibly modification.
-        e.mutated |= is_modify || (call_may_mutate && ctx.is_exact_arg);
-
-        e.executed_multiple_time |= ctx.executed_multiple_time;
-        e.used_in_cond |= ctx.in_cond;
-
-        if is_modify && ctx.is_exact_reassignment {
-            if is_first {
-                e.assign_count += 1;
-            }
-
-            if ctx.is_op_assign {
-                e.usage_count += 1;
-            } else if is_first {
-                if e.ref_count == 1
-                    && ctx.in_assign_lhs
-                    && e.var_kind != Some(VarDeclKind::Const)
-                    && !inited
-                {
-                    self.initialized_vars.insert(i.clone());
-                    e.assign_count -= 1;
-                    e.var_initialized = true;
-                } else {
-                    e.reassigned = true
+                if args.iter().any(|arg| self.contains_unresolved(&arg.expr)) {
+                    return true;
                 }
-            }
 
-            for other in e.infects_to.clone() {
-                self.report(other.0, ctx, true, dejavu)
+                false
             }
-        } else {
-            if call_may_mutate && ctx.is_exact_arg {
-                e.mutation_by_call_count += 1;
-            }
+        }
+    }
 
-            e.usage_count += 1;
+    fn member_expr_contains_unresolved(&self, n: &MemberExpr) -> bool {
+        if self.contains_unresolved(&n.obj) {
+            return true;
         }
 
-        if call_may_mutate && ctx.is_exact_arg {
-            self.mark_property_mutattion(i, ctx)
+        if let MemberProp::Computed(prop) = &n.prop {
+            if self.contains_unresolved(&prop.expr) {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn simple_assign_target_contains_unresolved(&self, n: &SimpleAssignTarget) -> bool {
+        match n {
+            SimpleAssignTarget::Ident(i) => self.ident_is_unresolved(&i.id),
+            SimpleAssignTarget::Member(me) => self.member_expr_contains_unresolved(me),
+            SimpleAssignTarget::SuperProp(n) => {
+                if let SuperProp::Computed(prop) = &n.prop {
+                    if self.contains_unresolved(&prop.expr) {
+                        return true;
+                    }
+                }
+
+                false
+            }
+            SimpleAssignTarget::Paren(n) => self.contains_unresolved(&n.expr),
+            SimpleAssignTarget::OptChain(n) => self.opt_chain_expr_contains_unresolved(n),
+            SimpleAssignTarget::TsAs(..)
+            | SimpleAssignTarget::TsSatisfies(..)
+            | SimpleAssignTarget::TsNonNull(..)
+            | SimpleAssignTarget::TsTypeAssertion(..)
+            | SimpleAssignTarget::TsInstantiation(..) => false,
+            SimpleAssignTarget::Invalid(..) => true,
         }
     }
 }

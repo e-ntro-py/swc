@@ -10,7 +10,6 @@ var r4 = b.foo;
 var r5 = b.bar;
 var r6 = b.baz;
 // basic non-generic and generic case inside a module
-var M;
 (function(M) {
     var a;
     var r1 = a.foo;
@@ -25,3 +24,4 @@ var M;
     // BUG 856491
     var r6 = b.baz; // any, should be boolean
 })(M || (M = {}));
+var M;

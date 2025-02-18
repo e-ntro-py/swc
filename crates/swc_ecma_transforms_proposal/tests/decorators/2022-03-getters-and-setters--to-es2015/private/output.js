@@ -13,36 +13,30 @@ class Foo {
             get: get_a,
             set: set_a
         });
-        _define_property(this, "value", 1);
-        _initProto(this);
+        _define_property(this, "value", (_initProto(this), 1));
     }
 }
-var __ = {
-    writable: true,
-    value: (()=>{
-        ({ e: [_call_a, _call_a1, _initProto]  } = _apply_decs_2203_r(Foo, [
-            [
-                dec,
-                3,
-                "a",
-                function() {
-                    return this.value;
-                }
-            ],
-            [
-                dec,
-                4,
-                "a",
-                function(v) {
-                    this.value = v;
-                }
-            ]
-        ], []));
-    })()
-};
+({ e: [_call_a, _call_a1, _initProto] } = _apply_decs_2203_r(Foo, [
+    [
+        dec,
+        3,
+        "a",
+        function() {
+            return this.value;
+        }
+    ],
+    [
+        dec,
+        4,
+        "a",
+        function(v) {
+            this.value = v;
+        }
+    ]
+], []));
 function get_a() {
     return _call_a(this);
 }
 function set_a(v) {
-    _call_a1(this, v);
+    return _call_a1(this, v);
 }

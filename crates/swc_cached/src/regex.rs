@@ -1,12 +1,13 @@
 //! Regex cache
 
-use std::{ops::Deref, sync::Arc};
+use std::{ops::Deref, str::FromStr, sync::Arc};
 
 pub use anyhow::Error;
 use anyhow::{Context, Result};
 use dashmap::DashMap;
 use once_cell::sync::Lazy;
 use regex::Regex;
+use rustc_hash::FxBuildHasher;
 use serde::{Deserialize, Serialize};
 
 /// A regex which can be used as a configuration.
@@ -30,7 +31,7 @@ impl CachedRegex {
     /// Get or create a cached regex. This will return the previous instance if
     /// it's already cached.
     pub fn new(input: &str) -> Result<Self> {
-        static CACHE: Lazy<DashMap<String, Arc<Regex>, ahash::RandomState>> =
+        static CACHE: Lazy<DashMap<String, Arc<Regex>, FxBuildHasher>> =
             Lazy::new(Default::default);
 
         if let Some(cache) = CACHE.get(input).as_deref().cloned() {
@@ -75,5 +76,13 @@ impl Serialize for CachedRegex {
 impl From<&'_ str> for CachedRegex {
     fn from(s: &'_ str) -> Self {
         Self::new(s).unwrap()
+    }
+}
+
+impl FromStr for CachedRegex {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::new(s)
     }
 }

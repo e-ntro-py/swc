@@ -11,18 +11,17 @@ Object.defineProperty(exports, "ServiceError", {
 const _ts_decorate = require("@swc/helpers/_/_ts_decorate");
 const CD = ()=>{};
 const PD = ()=>{};
-let ServiceError = class ServiceError1 extends Error {
+class ServiceError extends Error {
     code = ServiceError.Code.badResponse;
     name = "ServiceError.BadResponse";
-};
+}
 _ts_decorate._([
     PD
 ], ServiceError.prototype, "code", void 0);
 ServiceError = _ts_decorate._([
     CD
 ], ServiceError);
-(function(ServiceError1) {
-    let Code;
+(function(ServiceError) {
     (function(Code) {
         Code[Code["serviceNotFound"] = 404] = "serviceNotFound";
         Code[Code["serviceNotCompatible"] = 426] = "serviceNotCompatible";
@@ -31,16 +30,16 @@ ServiceError = _ts_decorate._([
         Code[Code["timedOut"] = 504] = "timedOut";
         Code[Code["badRequest"] = 400] = "badRequest";
         Code[Code["badResponse"] = 422] = "badResponse";
-    })(Code = ServiceError1.Code || (ServiceError1.Code = {}));
+    })(ServiceError.Code || (ServiceError.Code = {}));
     class ServiceNotFound extends ServiceError {
         code = 404;
         name = "ServiceError.ServiceNotFound";
     }
-    ServiceError1.ServiceNotFound = ServiceNotFound;
+    ServiceError.ServiceNotFound = ServiceNotFound;
     function toMessageBody(error) {
         return {
             code: ServiceError.Code.implementation
         };
     }
-    ServiceError1.toMessageBody = toMessageBody;
+    ServiceError.toMessageBody = toMessageBody;
 })(ServiceError || (ServiceError = {}));

@@ -1,6 +1,7 @@
 use swc_atoms::JsWord;
 use swc_common::SyntaxContext;
 use swc_ecma_ast::*;
+use swc_ecma_utils::{Type, Value};
 
 use super::{ctx::Ctx, ScopeKind};
 use crate::alias::Access;
@@ -17,20 +18,22 @@ pub trait Storage: Sized + Default {
 
     fn merge(&mut self, kind: ScopeKind, child: Self);
 
-    fn report_usage(&mut self, ctx: Ctx, i: &Ident, is_assign: bool);
+    fn report_usage(&mut self, ctx: Ctx, i: Id);
+
+    fn report_assign(&mut self, ctx: Ctx, i: Id, is_op: bool, ty: Value<Type>);
 
     fn declare_decl(
         &mut self,
         ctx: Ctx,
         i: &Ident,
-        has_init: bool,
+        init_type: Option<Value<Type>>,
         kind: Option<VarDeclKind>,
     ) -> &mut Self::VarData;
 
     fn get_initialized_cnt(&self) -> usize;
     fn truncate_initialized_cnt(&mut self, len: usize);
 
-    fn mark_property_mutattion(&mut self, id: Id, ctx: Ctx);
+    fn mark_property_mutation(&mut self, id: Id);
 }
 
 pub trait ScopeDataLike: Sized + Default + Clone {
@@ -65,12 +68,13 @@ pub trait VarDataLike: Sized {
 
     fn add_accessed_property(&mut self, name: JsWord);
 
-    fn mark_mutated(&mut self);
-    fn mark_reassigned(&mut self);
+    fn mark_used_as_ref(&mut self);
 
     fn add_infects_to(&mut self, other: Access);
 
     fn prevent_inline(&mut self);
+
+    fn mark_as_exported(&mut self);
 
     fn mark_initialized_with_safe_value(&mut self);
 

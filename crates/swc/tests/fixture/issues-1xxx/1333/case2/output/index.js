@@ -126,6 +126,7 @@ class Shard extends _utils.Emitter {
         } else if (emit) {
             this.emit(_utils.ShardEvent.DESTROYED);
         }
+        // (Step 3) Make the websocket connection prop undefined.
         _class_private_field_set._(this, _ws1, undefined);
         // (Step 4) Set the shard status to disconnected.
         this.status = _utils.Status.DISCONNECTED;
@@ -138,6 +139,7 @@ class Shard extends _utils.Emitter {
             _class_private_field_set._(this, _seq, -1);
             this.session.reset();
         }
+        // (Step 7) Reset ze bucket!
         _class_private_field_set._(this, _bucket, new _utils.Bucket(120, 6e4));
     }
     connect() {
@@ -345,36 +347,28 @@ class Shard extends _utils.Emitter {
      * @param {ShardManager} manager The shard manager.
      * @param {number} id The ID of this shard.
      */ constructor(manager, id){
-        super();
-        _class_private_field_init._(this, _serialization1, {
+        super(), _class_private_field_init._(this, _serialization1, {
             writable: true,
             value: void 0
-        });
-        _class_private_field_init._(this, _compression1, {
+        }), _class_private_field_init._(this, _compression1, {
             writable: true,
             value: void 0
-        });
-        _class_private_field_init._(this, _seq, {
+        }), _class_private_field_init._(this, _seq, {
             writable: true,
             value: void 0
-        });
-        _class_private_field_init._(this, _closingSeq, {
+        }), _class_private_field_init._(this, _closingSeq, {
             writable: true,
             value: void 0
-        });
-        _class_private_field_init._(this, _bucket, {
+        }), _class_private_field_init._(this, _bucket, {
             writable: true,
             value: void 0
-        });
-        _class_private_field_init._(this, _presenceBucket, {
+        }), _class_private_field_init._(this, _presenceBucket, {
             writable: true,
             value: void 0
-        });
-        _class_private_field_init._(this, _ws1, {
+        }), _class_private_field_init._(this, _ws1, {
             writable: true,
             value: void 0
-        });
-        _class_private_field_init._(this, _queue, {
+        }), _class_private_field_init._(this, _queue, {
             writable: true,
             value: void 0
         });
@@ -406,6 +400,7 @@ class Shard extends _utils.Emitter {
          * Guilds that are expected to be received.
          * @type {Set<string>}
          */ this.expectedGuilds = new Set();
+        // Private shit
         _class_private_field_set._(this, _seq, -1);
         _class_private_field_set._(this, _closingSeq, 0);
         _class_private_field_set._(this, _queue, []);

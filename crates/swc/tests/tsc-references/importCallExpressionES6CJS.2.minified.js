@@ -1,5 +1,4 @@
 //// [0.ts]
-"use strict";
 function foo() {
     return "foo";
 }
@@ -12,7 +11,6 @@ Object.defineProperty(exports, "__esModule", {
     }
 });
 //// [1.ts]
-"use strict";
 Object.defineProperty(exports, "__esModule", {
     value: !0
 }), function(target, all) {
@@ -21,18 +19,18 @@ Object.defineProperty(exports, "__esModule", {
         get: all[name]
     });
 }(exports, {
-    p2: function() {
-        return p2;
-    },
     D: function() {
         return D;
+    },
+    p2: function() {
+        return p2;
     }
 });
 const _interop_require_wildcard = require("@swc/helpers/_/_interop_require_wildcard");
-Promise.resolve().then(()=>_interop_require_wildcard._(require("./0"))), Promise.resolve().then(()=>_interop_require_wildcard._(require("./0"))).then((zero)=>zero.foo());
-var p2 = Promise.resolve().then(()=>_interop_require_wildcard._(require("./0")));
+Promise.resolve().then(()=>/*#__PURE__*/ _interop_require_wildcard._(require("./0"))), Promise.resolve().then(()=>/*#__PURE__*/ _interop_require_wildcard._(require("./0"))).then((zero)=>zero.foo());
+var p2 = Promise.resolve().then(()=>/*#__PURE__*/ _interop_require_wildcard._(require("./0")));
 class D {
     method() {
-        Promise.resolve().then(()=>_interop_require_wildcard._(require("./0")));
+        Promise.resolve().then(()=>/*#__PURE__*/ _interop_require_wildcard._(require("./0")));
     }
 }

@@ -3,7 +3,6 @@ define([
     "require",
     "exports"
 ], function(require, exports) {
-    "use strict";
     Object.defineProperty(exports, "__esModule", {
         value: !0
     }), function(target, all) {
@@ -28,7 +27,6 @@ define([
     "@swc/helpers/_/_interop_require_wildcard",
     "./0"
 ], function(require, exports, _interop_require_wildcard, _0) {
-    "use strict";
     Object.defineProperty(exports, "__esModule", {
         value: !0
     }), Object.defineProperty(exports, "default", {
@@ -36,7 +34,7 @@ define([
         get: function() {
             return _0;
         }
-    }), _0 = _interop_require_wildcard._(_0);
+    }), _0 = /*#__PURE__*/ _interop_require_wildcard._(_0);
 });
 //// [11.ts]
 define([
@@ -45,7 +43,6 @@ define([
     "@swc/helpers/_/_interop_require_wildcard",
     "./0"
 ], function(require, exports, _interop_require_wildcard, _0) {
-    "use strict";
     Object.defineProperty(exports, "__esModule", {
         value: !0
     }), Object.defineProperty(exports, "default", {
@@ -54,7 +51,7 @@ define([
             return _default;
         }
     });
-    var _default = _0 = _interop_require_wildcard._(_0);
+    var _default = _0 = /*#__PURE__*/ _interop_require_wildcard._(_0);
 });
 //// [2.ts]
 define([
@@ -64,8 +61,7 @@ define([
     "./1",
     "./11"
 ], function(require, exports, _interop_require_default, _1, _11) {
-    "use strict";
     Object.defineProperty(exports, "__esModule", {
         value: !0
-    }), _1 = _interop_require_default._(_1), _11 = _interop_require_default._(_11), _1.default.a, _11.default.a, _1.default.b, _11.default.b;
+    }), _1 = /*#__PURE__*/ _interop_require_default._(_1), _11 = /*#__PURE__*/ _interop_require_default._(_11), _1.default.a, _11.default.a, _1.default.b, _11.default.b;
 });

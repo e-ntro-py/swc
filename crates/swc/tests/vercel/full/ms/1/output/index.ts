@@ -1,7 +1,8 @@
-export default function(s, c) {
-    var a, r;
+import { _ as e } from "@swc/helpers/_/_type_of";
+export default function(c, a) {
+    var r, n, t, o, u;
     try {
-        if ("string" == typeof s && s.length > 0) return function(e) {
+        if ("string" == typeof c && c.length > 0) return function(e) {
             if ((e = String(e)).length > 100) throw Error("Value exceeds the maximum length of 100 characters.");
             var s = /^(-?(?:\d+)?\.?\d+) *(milliseconds?|msecs?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|weeks?|w|years?|yrs?|y)?$/i.exec(e);
             if (!s) return NaN;
@@ -48,13 +49,15 @@ export default function(s, c) {
                 default:
                     throw Error("The unit ".concat(a, " was matched, but no matching case exists."));
             }
-        }(s);
-        if ("number" == typeof s && isFinite(s)) return (null == c ? void 0 : c.long) ? (a = Math.abs(s)) >= 86400000 ? e(s, a, 86400000, "day") : a >= 3600000 ? e(s, a, 3600000, "hour") : a >= 60000 ? e(s, a, 60000, "minute") : a >= 1000 ? e(s, a, 1000, "second") : "".concat(s, " ms") : (r = Math.abs(s)) >= 86400000 ? "".concat(Math.round(s / 86400000), "d") : r >= 3600000 ? "".concat(Math.round(s / 3600000), "h") : r >= 60000 ? "".concat(Math.round(s / 60000), "m") : r >= 1000 ? "".concat(Math.round(s / 1000), "s") : "".concat(s, "ms");
+        }(c);
+        if ("number" == typeof c && isFinite(c)) {
+            return (null == a ? void 0 : a.long) ? (r = c, (n = Math.abs(r)) >= 86400000 ? s(r, n, 86400000, "day") : n >= 3600000 ? s(r, n, 3600000, "hour") : n >= 60000 ? s(r, n, 60000, "minute") : n >= 1000 ? s(r, n, 1000, "second") : "".concat(r, " ms")) : (t = c, (o = Math.abs(t)) >= 86400000 ? "".concat(Math.round(t / 86400000), "d") : o >= 3600000 ? "".concat(Math.round(t / 3600000), "h") : o >= 60000 ? "".concat(Math.round(t / 60000), "m") : o >= 1000 ? "".concat(Math.round(t / 1000), "s") : "".concat(t, "ms"));
+        }
         throw Error("Value is not a string or number.");
-    } catch (e) {
-        throw Error("object" == typeof e && null !== e && "message" in e ? "".concat(e.message, ". value=").concat(JSON.stringify(s)) : "An unknown error has occurred.");
+    } catch (s) {
+        throw Error((void 0 === (u = s) ? "undefined" : e(u)) === "object" && null !== u && "message" in u ? "".concat(s.message, ". value=").concat(JSON.stringify(c)) : "An unknown error has occurred.");
     }
-};
-function e(e, s, c, a) {
+}
+function s(e, s, c, a) {
     return "".concat(Math.round(e / c), " ").concat(a).concat(s >= 1.5 * c ? "s" : "");
 }

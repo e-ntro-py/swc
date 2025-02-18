@@ -27,11 +27,7 @@ var A = /*#__PURE__*/ function() {
     };
     return A;
 }();
-var M;
-(function(M) {
-    var n;
-    M.n = n;
-})(M || (M = {}));
+(function(M) {})(M || (M = {}));
 var objA = new A();
 // any type var
 var ResultIsAny1 = void ANY1;
@@ -65,3 +61,4 @@ void ANY2[0];
 ANY, ANY1;
 void objA.a;
 void M.n;
+var M;

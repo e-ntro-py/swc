@@ -5,8 +5,8 @@ use std::{
 
 use dashmap::DashMap;
 use once_cell::sync::Lazy;
-use rustc_hash::FxHashMap;
-use swc_atoms::JsWord;
+use rustc_hash::{FxBuildHasher, FxHashMap};
+use swc_atoms::{atom, JsWord};
 use swc_common::{
     errors::HANDLER,
     sync::Lrc,
@@ -16,13 +16,13 @@ use swc_common::{
 use swc_ecma_ast::*;
 use swc_ecma_parser::parse_file_as_expr;
 use swc_ecma_utils::drop_span;
-use swc_ecma_visit::{as_folder, noop_visit_mut_type, Fold, VisitMut, VisitMutWith};
+use swc_ecma_visit::{noop_visit_mut_type, visit_mut_pass, VisitMut, VisitMutWith};
 
 pub fn const_modules(
     cm: Lrc<SourceMap>,
     globals: FxHashMap<JsWord, FxHashMap<JsWord, String>>,
-) -> impl Fold {
-    as_folder(ConstModules {
+) -> impl Pass {
+    visit_mut_pass(ConstModules {
         globals: globals
             .into_iter()
             .map(|(src, map)| {
@@ -43,10 +43,12 @@ pub fn const_modules(
 }
 
 fn parse_option(cm: &SourceMap, name: &str, src: String) -> Arc<Expr> {
-    static CACHE: Lazy<DashMap<String, Arc<Expr>, ahash::RandomState>> =
-        Lazy::new(DashMap::default);
+    static CACHE: Lazy<DashMap<String, Arc<Expr>, FxBuildHasher>> = Lazy::new(DashMap::default);
 
-    let fm = cm.new_source_file(FileName::Custom(format!("<const-module-{}.js>", name)), src);
+    let fm = cm.new_source_file(
+        FileName::Internal(format!("<const-module-{}.js>", name)).into(),
+        src,
+    );
     if let Some(expr) = CACHE.get(&**fm.src) {
         return expr.clone();
     }
@@ -56,7 +58,7 @@ fn parse_option(cm: &SourceMap, name: &str, src: String) -> Arc<Expr> {
         Default::default(),
         Default::default(),
         None,
-        &mut vec![],
+        &mut Vec::new(),
     )
     .map_err(|e| {
         if HANDLER.is_set() {
@@ -90,7 +92,7 @@ struct Scope {
 }
 
 impl VisitMut for ConstModules {
-    noop_visit_mut_type!();
+    noop_visit_mut_type!(fail);
 
     fn visit_mut_module_items(&mut self, n: &mut Vec<ModuleItem>) {
         *n = n.take().move_flat_map(|item| match item {
@@ -120,15 +122,25 @@ impl VisitMut for ConstModules {
                             ImportSpecifier::Namespace(ref s) => {
                                 self.scope.namespace.insert(s.local.to_id());
                             }
-                            ImportSpecifier::Default(..) => {
-                                panic!("const_module does not support default import")
+                            ImportSpecifier::Default(ref s) => {
+                                let imported = &s.local.sym;
+                                let default_import_key = atom!("default");
+                                let value =
+                                    entry.get(&default_import_key).cloned().unwrap_or_else(|| {
+                                        panic!(
+                                            "The requested const_module `{}` does not provide \
+                                             default export",
+                                            import.src.value
+                                        )
+                                    });
+                                self.scope.imported.insert(imported.clone(), value);
                             }
                         };
                     }
 
                     None
                 } else {
-                    Some(ModuleItem::ModuleDecl(ModuleDecl::Import(import)))
+                    Some(import.into())
                 }
             }
             _ => Some(item),
@@ -138,11 +150,7 @@ impl VisitMut for ConstModules {
             return;
         }
 
-        n.iter_mut().for_each(|item| {
-            if let ModuleItem::Stmt(stmt) = item {
-                stmt.visit_mut_with(self);
-            }
-        });
+        n.visit_mut_children_with(self);
     }
 
     fn visit_mut_expr(&mut self, n: &mut Expr) {
@@ -153,7 +161,7 @@ impl VisitMut for ConstModules {
                     return;
                 }
 
-                if let Some(..) = self.scope.namespace.get(&id.to_id()) {
+                if self.scope.namespace.contains(&id.to_id()) {
                     panic!(
                         "The const_module namespace `{}` cannot be used without member accessor",
                         sym
@@ -209,7 +217,7 @@ impl VisitMut for ConstModules {
                     return;
                 }
 
-                if let Some(..) = self.scope.namespace.get(&id.to_id()) {
+                if self.scope.namespace.contains(&id.to_id()) {
                     panic!(
                         "The const_module namespace `{}` cannot be used without member accessor",
                         id.sym

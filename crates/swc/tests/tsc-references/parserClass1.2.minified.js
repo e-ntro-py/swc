@@ -1,7 +1,6 @@
 //// [parserClass1.ts]
 import { _ as _class_call_check } from "@swc/helpers/_/_class_call_check";
-export var NullLogger = function() {
-    "use strict";
+export var NullLogger = /*#__PURE__*/ function() {
     function NullLogger() {
         _class_call_check(this, NullLogger);
     }

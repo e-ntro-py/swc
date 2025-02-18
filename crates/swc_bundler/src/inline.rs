@@ -1,4 +1,5 @@
-use swc_common::{collections::AHashMap, SyntaxContext, DUMMY_SP};
+use rustc_hash::FxHashMap;
+use swc_common::{SyntaxContext, DUMMY_SP};
 use swc_ecma_ast::*;
 use swc_ecma_visit::{
     noop_visit_mut_type, noop_visit_type, visit_mut_obj_and_computed, Visit, VisitMut,
@@ -9,7 +10,7 @@ use crate::{id::Id, modules::Modules, util::Readonly};
 
 #[derive(Debug, Default)]
 pub(crate) struct InlineData {
-    ids: AHashMap<Id, Id>,
+    ids: FxHashMap<Id, Id>,
 }
 
 /// Inline **injected** variables.
@@ -68,7 +69,7 @@ impl Visit for Analyzer<'_> {
     fn visit_block_stmt(&mut self, _: &BlockStmt) {}
 
     fn visit_var_decl(&mut self, n: &VarDecl) {
-        if n.span.ctxt != self.injected_ctxt || n.kind != VarDeclKind::Const {
+        if n.ctxt != self.injected_ctxt || n.kind != VarDeclKind::Const {
             return;
         }
 
@@ -84,7 +85,7 @@ impl Visit for Analyzer<'_> {
 }
 
 impl VisitMut for Inliner {
-    noop_visit_mut_type!();
+    noop_visit_mut_type!(fail);
 
     visit_mut_obj_and_computed!();
 
@@ -115,13 +116,13 @@ impl VisitMut for Inliner {
             Prop::Shorthand(i) => {
                 let orig = i.clone();
                 i.visit_mut_with(self);
-                if i.span.ctxt == orig.span.ctxt {
+                if i.ctxt == orig.ctxt {
                     return;
                 }
                 if i.sym != orig.sym {
                     *n = Prop::KeyValue(KeyValueProp {
-                        key: PropName::Ident(orig),
-                        value: Box::new(Expr::Ident(i.clone())),
+                        key: PropName::Ident(orig.into()),
+                        value: i.clone().into(),
                     });
                 }
             }
@@ -148,7 +149,7 @@ impl VisitMut for Inliner {
 
         match n {
             Stmt::Decl(Decl::Var(var)) if var.decls.is_empty() => {
-                *n = Stmt::Empty(EmptyStmt { span: DUMMY_SP });
+                *n = EmptyStmt { span: DUMMY_SP }.into();
             }
             _ => {}
         }

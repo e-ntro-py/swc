@@ -8,8 +8,7 @@ var STRING, M, STRING1 = [
 function foo() {
     return "abc";
 }
-var A = function() {
-    "use strict";
+var A = /*#__PURE__*/ function() {
     function A() {
         _class_call_check(this, A);
     }
@@ -17,10 +16,7 @@ var A = function() {
         return "";
     }, A;
 }();
-!function(M) {
-    var n;
-    M.n = n;
-}(M || (M = {}));
+M || (M = {});
 var objA = new A();
 void 0 === STRING || _type_of(STRING), _type_of(STRING1), _type_of(""), _type_of({
     x: "",

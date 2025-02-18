@@ -9,29 +9,26 @@ function _export(target, all) {
     });
 }
 _export(exports, {
-    cx: function() {
-        return _css.cx;
+    breakpoints: function() {
+        return breakpoints;
     },
     clsx: function() {
         return _css.cx;
     },
-    keyframes: function() {
-        return _css.keyframes;
-    },
-    breakpoints: function() {
-        return breakpoints;
+    cx: function() {
+        return _css.cx;
     },
     default: function() {
         return _default;
+    },
+    keyframes: function() {
+        return _css.keyframes;
     }
 });
 require(".");
 const _styled = /*#__PURE__*/ _interop_require_default(require("@emotion/styled"));
 const _breakpoints = require("@eduzz/houston-tokens/variables/breakpoints");
 const _css = require("@emotion/css");
-interface IStyledProp {
-    className?: string;
-}
 const breakpoints = _breakpoints.breakpoinstUtils;
 const styled = _styled.default;
 const _default = styled;

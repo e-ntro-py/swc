@@ -14,16 +14,16 @@ ExpandoMerge.p8 = false; // type error
 ExpandoMerge.p9 = false; // type error
 var n = ExpandoMerge.p1 + ExpandoMerge.p2 + ExpandoMerge.p3 + ExpandoMerge.p4 + ExpandoMerge.p5 + ExpandoMerge.p6 + ExpandoMerge.p7 + ExpandoMerge.p8 + ExpandoMerge.p9 + ExpandoMerge.m(12) + ExpandoMerge(1001);
 //// [ns.ts]
+(function(ExpandoMerge) {
+    ExpandoMerge.p3 = 333;
+    ExpandoMerge.p4 = 4;
+    ExpandoMerge.p5 = 5;
+    ExpandoMerge.p6 = 6;
+    ExpandoMerge.p7 = 7;
+    ExpandoMerge.p8 = 6;
+    ExpandoMerge.p9 = 7;
+})(ExpandoMerge || (ExpandoMerge = {}));
+(function(ExpandoMerge) {
+    ExpandoMerge.p2 = 222;
+})(ExpandoMerge || (ExpandoMerge = {}));
 var ExpandoMerge;
-(function(ExpandoMerge) {
-    var p3 = ExpandoMerge.p3 = 333;
-    var p4 = ExpandoMerge.p4 = 4;
-    var p5 = ExpandoMerge.p5 = 5;
-    var p6 = ExpandoMerge.p6 = 6;
-    var p7 = ExpandoMerge.p7 = 7;
-    var p8 = ExpandoMerge.p8 = 6;
-    var p9 = ExpandoMerge.p9 = 7;
-})(ExpandoMerge || (ExpandoMerge = {}));
-(function(ExpandoMerge) {
-    var p2 = ExpandoMerge.p2 = 222;
-})(ExpandoMerge || (ExpandoMerge = {}));

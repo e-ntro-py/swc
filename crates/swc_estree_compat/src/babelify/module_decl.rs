@@ -90,13 +90,13 @@ impl Babelify for ExportDecl {
             declaration: Some(Box::alloc().init(self.decl.babelify(ctx))),
             specifiers: Default::default(),
             source: Default::default(),
-            assertions: Default::default(),
+            with: Default::default(),
             export_kind: Default::default(),
         }
     }
 }
 
-fn convert_import_asserts(
+fn convert_import_attrs(
     asserts: Option<Box<ObjectLit>>,
     ctx: &Context,
 ) -> Option<Vec<ImportAttribute>> {
@@ -161,12 +161,25 @@ impl Babelify for ImportDecl {
             base: ctx.base(self.span),
             specifiers: self.specifiers.babelify(ctx),
             source: self.src.babelify(ctx),
-            assertions: convert_import_asserts(self.asserts, ctx),
+            with: convert_import_attrs(self.with, ctx),
             import_kind: if self.type_only {
                 Some(ImportKind::Type)
             } else {
                 None
             },
+            phase: self.phase.babelify(ctx),
+        }
+    }
+}
+
+impl Babelify for swc_ecma_ast::ImportPhase {
+    type Output = Option<swc_estree_ast::ImportPhase>;
+
+    fn babelify(self, _: &Context) -> Self::Output {
+        match self {
+            Self::Evaluation => None,
+            Self::Source => Some(swc_estree_ast::ImportPhase::Source),
+            Self::Defer => Some(swc_estree_ast::ImportPhase::Defer),
         }
     }
 }
@@ -178,7 +191,7 @@ impl Babelify for ExportAll {
         ExportAllDeclaration {
             base: ctx.base(self.span),
             source: self.src.babelify(ctx),
-            assertions: convert_import_asserts(self.asserts, ctx),
+            with: convert_import_attrs(self.with, ctx),
             export_kind: if self.type_only {
                 Some(ExportKind::Type)
             } else {
@@ -197,7 +210,7 @@ impl Babelify for NamedExport {
             declaration: Default::default(),
             specifiers: self.specifiers.babelify(ctx),
             source: self.src.map(|s| s.babelify(ctx)),
-            assertions: convert_import_asserts(self.asserts, ctx),
+            with: convert_import_attrs(self.with, ctx),
             export_kind: if self.type_only {
                 Some(ExportKind::Type)
             } else {

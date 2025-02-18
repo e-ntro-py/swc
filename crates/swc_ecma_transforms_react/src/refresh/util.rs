@@ -1,11 +1,12 @@
-use swc_common::{collections::AHashSet, Spanned, SyntaxContext, DUMMY_SP};
+use rustc_hash::FxHashSet;
+use swc_common::{Spanned, SyntaxContext, DUMMY_SP};
 use swc_ecma_ast::*;
 use swc_ecma_utils::ExprFactory;
 use swc_ecma_visit::{noop_visit_type, Visit, VisitWith};
 
-pub fn is_builtin_hook(name: &Ident) -> bool {
+pub fn is_builtin_hook(name: &str) -> bool {
     matches!(
-        name.sym.as_ref(),
+        name,
         "useState"
             | "useReducer"
             | "useEffect"
@@ -33,7 +34,7 @@ fn assert_hygiene(e: &Expr) {
     }
 
     if let Expr::Ident(i) = e {
-        if i.span.ctxt == SyntaxContext::empty() {
+        if i.ctxt == SyntaxContext::empty() {
             panic!("`{}` should be resolved", i)
         }
     }
@@ -42,28 +43,31 @@ fn assert_hygiene(e: &Expr) {
 pub fn make_assign_stmt(handle: Ident, expr: Box<Expr>) -> Expr {
     assert_hygiene(&expr);
 
-    Expr::Assign(AssignExpr {
+    AssignExpr {
         span: expr.span(),
         op: op!("="),
-        left: PatOrExpr::Pat(handle.into()),
+        left: handle.into(),
         right: expr,
-    })
+    }
+    .into()
 }
 
 pub fn make_call_stmt(handle: Ident) -> Stmt {
-    Stmt::Expr(ExprStmt {
+    ExprStmt {
         span: DUMMY_SP,
         expr: Box::new(make_call_expr(handle)),
-    })
+    }
+    .into()
 }
 
 pub fn make_call_expr(handle: Ident) -> Expr {
-    Expr::Call(CallExpr {
+    CallExpr {
         span: DUMMY_SP,
         callee: handle.as_callee(),
         args: Vec::new(),
-        type_args: None,
-    })
+        ..Default::default()
+    }
+    .into()
 }
 
 pub fn is_import_or_require(expr: &Expr) -> bool {
@@ -86,7 +90,7 @@ pub fn is_import_or_require(expr: &Expr) -> bool {
     }
 }
 
-pub struct UsedInJsx(AHashSet<Id>);
+pub struct UsedInJsx(FxHashSet<Id>);
 
 impl Visit for UsedInJsx {
     noop_visit_type!();
@@ -96,18 +100,18 @@ impl Visit for UsedInJsx {
 
         if let Callee::Expr(expr) = &n.callee {
             let ident = match expr.as_ref() {
-                Expr::Ident(ident) => ident,
+                Expr::Ident(ident) => ident.to_id(),
                 Expr::Member(MemberExpr {
                     prop: MemberProp::Ident(ident),
                     ..
-                }) => ident,
+                }) => (ident.sym.clone(), SyntaxContext::empty()),
                 _ => return,
             };
             if matches!(
-                ident.sym.as_ref(),
+                ident.0.as_ref(),
                 "createElement" | "jsx" | "jsxDEV" | "jsxs"
             ) {
-                if let Some(ExprOrSpread { expr, .. }) = n.args.get(0) {
+                if let Some(ExprOrSpread { expr, .. }) = n.args.first() {
                     if let Expr::Ident(ident) = expr.as_ref() {
                         self.0.insert(ident.to_id());
                     }
@@ -123,8 +127,8 @@ impl Visit for UsedInJsx {
     }
 }
 
-pub fn collect_ident_in_jsx<V: VisitWith<UsedInJsx>>(item: &V) -> AHashSet<Id> {
-    let mut visitor = UsedInJsx(AHashSet::default());
+pub fn collect_ident_in_jsx<V: VisitWith<UsedInJsx>>(item: &V) -> FxHashSet<Id> {
+    let mut visitor = UsedInJsx(FxHashSet::default());
     item.visit_with(&mut visitor);
     visitor.0
 }

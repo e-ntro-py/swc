@@ -1,6 +1,7 @@
 use std::mem::take;
 
-use swc_common::{collections::AHashMap, SourceMap, SyntaxContext, DUMMY_SP};
+use rustc_hash::FxHashMap;
+use swc_common::{SourceMap, SyntaxContext, DUMMY_SP};
 use swc_ecma_ast::*;
 use swc_ecma_visit::{Fold, FoldWith, Visit, VisitMut, VisitMutWith, VisitWith};
 
@@ -17,8 +18,8 @@ pub struct Modules {
 
     // We will change this into `Vec<Module>`.
     modules: Vec<(ModuleId, Module)>,
-    prepended_stmts: AHashMap<ModuleId, Vec<ModuleItem>>,
-    appended_stmts: AHashMap<ModuleId, Vec<ModuleItem>>,
+    prepended_stmts: FxHashMap<ModuleId, Vec<ModuleItem>>,
+    appended_stmts: FxHashMap<ModuleId, Vec<ModuleItem>>,
 }
 
 impl Modules {
@@ -266,7 +267,7 @@ impl Modules {
             })
             .collect::<String>();
         let mut cloned = self.clone();
-        let mut stmts = vec![];
+        let mut stmts = Vec::new();
 
         for (id, mut module) in cloned.modules {
             swc_ecma_utils::prepend_stmts(
@@ -279,14 +280,9 @@ impl Modules {
                     .into_iter(),
             );
 
-            module.body.extend(
-                cloned
-                    .appended_stmts
-                    .get(&id)
-                    .cloned()
-                    .unwrap_or_default()
-                    .into_iter(),
-            );
+            module
+                .body
+                .extend(cloned.appended_stmts.get(&id).cloned().unwrap_or_default());
 
             stmts.extend(module.body);
         }

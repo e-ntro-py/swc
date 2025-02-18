@@ -1,41 +1,37 @@
-use swc_atoms::js_word;
-use swc_common::{
-    collections::AHashSet, comments::Comments, util::take::Take, FileName, Mark, Span, Spanned,
-    DUMMY_SP,
-};
+use rustc_hash::FxHashSet;
+use swc_common::{source_map::PURE_SP, util::take::Take, Mark, Span, SyntaxContext, DUMMY_SP};
 use swc_ecma_ast::*;
 use swc_ecma_transforms_base::{feature::FeatureFlag, helper_expr};
 use swc_ecma_utils::{
     member_expr, private_ident, quote_expr, quote_ident, ExprFactory, FunctionFactory, IsDirective,
 };
-use swc_ecma_visit::{as_folder, noop_visit_mut_type, Fold, VisitMut, VisitMutWith};
+use swc_ecma_visit::{noop_visit_mut_type, visit_mut_pass, VisitMut, VisitMutWith};
 
 pub use super::util::Config;
 use crate::{
-    module_decl_strip::{Export, Link, LinkFlag, LinkItem, LinkSpecifierReducer, ModuleDeclStrip},
-    module_ref_rewriter::{ImportMap, ModuleRefRewriter},
-    path::{ImportResolver, Resolver},
+    module_decl_strip::{
+        Export, ExportKV, Link, LinkFlag, LinkItem, LinkSpecifierReducer, ModuleDeclStrip,
+    },
+    module_ref_rewriter::{rewrite_import_bindings, ImportMap},
+    path::Resolver,
+    top_level_this::top_level_this,
     util::{
-        clone_first_use_directive, define_es_module, emit_export_stmts, local_name_for_src,
-        prop_name, use_strict, ImportInterop, ObjPropKeyIdent,
+        define_es_module, emit_export_stmts, local_name_for_src, prop_name, use_strict,
+        ImportInterop, VecStmtLike,
     },
 };
 
-pub fn common_js<C>(
+pub fn common_js(
+    resolver: Resolver,
     unresolved_mark: Mark,
     config: Config,
     available_features: FeatureFlag,
-    comments: Option<C>,
-) -> impl Fold + VisitMut
-where
-    C: Comments,
-{
-    as_folder(Cjs {
+) -> impl Pass {
+    visit_mut_pass(Cjs {
         config,
-        resolver: Resolver::Default,
+        resolver,
         unresolved_mark,
         available_features,
-        comments,
         support_arrow: caniuse!(available_features.ArrowFunctions),
         const_var_kind: if caniuse!(available_features.BlockScoping) {
             VarDeclKind::Const
@@ -45,52 +41,39 @@ where
     })
 }
 
-pub fn common_js_with_resolver<C>(
-    resolver: Box<dyn ImportResolver>,
-    base: FileName,
-    unresolved_mark: Mark,
-    config: Config,
-    available_features: FeatureFlag,
-    comments: Option<C>,
-) -> impl Fold + VisitMut
-where
-    C: Comments,
-{
-    as_folder(Cjs {
-        config,
-        resolver: Resolver::Real { base, resolver },
-        unresolved_mark,
-        available_features,
-        comments,
-        support_arrow: caniuse!(available_features.ArrowFunctions),
-        const_var_kind: if caniuse!(available_features.BlockScoping) {
-            VarDeclKind::Const
-        } else {
-            VarDeclKind::Var
-        },
-    })
-}
-
-pub struct Cjs<C>
-where
-    C: Comments,
-{
+pub struct Cjs {
     config: Config,
     resolver: Resolver,
     unresolved_mark: Mark,
     available_features: FeatureFlag,
-    comments: Option<C>,
     support_arrow: bool,
     const_var_kind: VarDeclKind,
 }
 
-impl<C> VisitMut for Cjs<C>
-where
-    C: Comments,
-{
-    noop_visit_mut_type!();
+impl VisitMut for Cjs {
+    noop_visit_mut_type!(fail);
 
-    fn visit_mut_module_items(&mut self, n: &mut Vec<ModuleItem>) {
+    fn visit_mut_module(&mut self, n: &mut Module) {
+        let mut stmts: Vec<ModuleItem> = Vec::with_capacity(n.body.len() + 6);
+
+        // Collect directives
+        stmts.extend(
+            &mut n
+                .body
+                .iter_mut()
+                .take_while(|i| i.directive_continue())
+                .map(|i| i.take()),
+        );
+
+        // "use strict";
+        if self.config.strict_mode && !stmts.has_use_strict() {
+            stmts.push(use_strict().into());
+        }
+
+        if !self.config.allow_top_level_this {
+            top_level_this(&mut n.body, *Expr::undefined(DUMMY_SP));
+        }
+
         let import_interop = self.config.import_interop();
 
         let mut module_map = Default::default();
@@ -98,7 +81,7 @@ where
         let mut has_ts_import_equals = false;
 
         // handle `import foo = require("mod")`
-        n.iter_mut().for_each(|item| {
+        n.body.iter_mut().for_each(|item| {
             if let ModuleItem::ModuleDecl(module_decl) = item {
                 *item = self.handle_ts_import_equals(
                     module_decl.take(),
@@ -109,20 +92,7 @@ where
         });
 
         let mut strip = ModuleDeclStrip::new(self.const_var_kind);
-        n.visit_mut_with(&mut strip);
-
-        let mut stmts: Vec<ModuleItem> = Vec::with_capacity(n.len() + 6);
-
-        stmts.extend(clone_first_use_directive(n, false).map(From::from));
-
-        // "use strict";
-        if self.config.strict_mode {
-            stmts.push(
-                clone_first_use_directive(n, true)
-                    .unwrap_or_else(use_strict)
-                    .into(),
-            );
-        }
+        n.body.visit_mut_with(&mut strip);
 
         let ModuleDeclStrip {
             link,
@@ -155,8 +125,8 @@ where
             .map(From::from),
         );
 
-        stmts.extend(n.take().into_iter().filter(|item| match item {
-            ModuleItem::Stmt(stmt) => !stmt.is_directive(),
+        stmts.extend(n.body.take().into_iter().filter(|item| match item {
+            ModuleItem::Stmt(stmt) => !stmt.is_empty(),
             _ => false,
         }));
 
@@ -166,8 +136,12 @@ where
                 export_assign
                     .make_assign_to(
                         op!("="),
-                        member_expr!(DUMMY_SP.apply_mark(self.unresolved_mark), module.exports)
-                            .into(),
+                        member_expr!(
+                            SyntaxContext::empty().apply_mark(self.unresolved_mark),
+                            Default::default(),
+                            module.exports
+                        )
+                        .into(),
                     )
                     .into_stmt()
                     .into(),
@@ -178,20 +152,24 @@ where
             stmts.visit_mut_children_with(self);
         }
 
-        stmts.visit_mut_children_with(&mut ModuleRefRewriter::new(
-            module_map,
-            lazy_record,
-            self.config.allow_top_level_this,
-        ));
+        rewrite_import_bindings(&mut stmts, module_map, lazy_record);
 
-        *n = stmts;
+        n.body = stmts;
+    }
+
+    fn visit_mut_script(&mut self, _: &mut Script) {
+        // skip script
     }
 
     fn visit_mut_expr(&mut self, n: &mut Expr) {
         match n {
             Expr::Call(CallExpr {
                 span,
-                callee: Callee::Import(Import { span: import_span }),
+                callee:
+                    Callee::Import(Import {
+                        span: import_span,
+                        phase: ImportPhase::Evaluation,
+                    }),
                 args,
                 ..
             }) if !self.config.ignore_dynamic => {
@@ -210,35 +188,31 @@ where
                     }
                 });
 
-                let require_span = import_span.apply_mark(self.unresolved_mark);
+                let unresolved_ctxt = SyntaxContext::empty().apply_mark(self.unresolved_mark);
 
                 *n = cjs_dynamic_import(
                     *span,
-                    self.pure_span(),
                     args.take(),
-                    quote_ident!(require_span, "require"),
+                    quote_ident!(unresolved_ctxt, *import_span, "require"),
                     self.config.import_interop(),
                     self.support_arrow,
                     is_lit_path,
                 );
             }
-            Expr::Member(MemberExpr {
-                span,
-                obj,
-                prop:
-                    MemberProp::Ident(Ident {
-                        sym: js_word!("url"),
-                        ..
-                    }),
-            }) if !self.config.preserve_import_meta
-                && obj
-                    .as_meta_prop()
-                    .map(|p| p.kind == MetaPropKind::ImportMeta)
-                    .unwrap_or_default() =>
+            Expr::Member(MemberExpr { span, obj, prop })
+                if prop.is_ident_with("url")
+                    && !self.config.preserve_import_meta
+                    && obj
+                        .as_meta_prop()
+                        .map(|p| p.kind == MetaPropKind::ImportMeta)
+                        .unwrap_or_default() =>
             {
                 obj.visit_mut_with(self);
 
-                let require = quote_ident!(DUMMY_SP.apply_mark(self.unresolved_mark), "require");
+                let require = quote_ident!(
+                    SyntaxContext::empty().apply_mark(self.unresolved_mark),
+                    "require"
+                );
                 *n = cjs_import_meta_url(*span, require, self.unresolved_mark);
             }
             _ => n.visit_mut_children_with(self),
@@ -246,14 +220,11 @@ where
     }
 }
 
-impl<C> Cjs<C>
-where
-    C: Comments,
-{
+impl Cjs {
     fn handle_import_export(
         &mut self,
         import_map: &mut ImportMap,
-        lazy_record: &mut AHashSet<Id>,
+        lazy_record: &mut FxHashSet<Id>,
         link: Link,
         export: Export,
         is_export_assign: bool,
@@ -264,7 +235,7 @@ where
 
         let mut stmts = Vec::with_capacity(link.len());
 
-        let mut export_obj_prop_list = export.into_iter().map(From::from).collect();
+        let mut export_obj_prop_list = export.into_iter().collect();
 
         let lexer_reexport = if export_interop_annotation {
             self.emit_lexer_reexport(&link)
@@ -303,7 +274,7 @@ where
                 // require("mod");
                 let import_expr =
                     self.resolver
-                        .make_require_call(self.unresolved_mark, src, src_span);
+                        .make_require_call(self.unresolved_mark, src, src_span.0);
 
                 // _export_star(require("mod"), exports);
                 let import_expr = if link_flag.export_star() {
@@ -323,28 +294,22 @@ where
                         } else {
                             helper_expr!(interop_require_default)
                         }
-                        .as_call(self.pure_span(), vec![import_expr.as_arg()]),
-                        ImportInterop::Node if link_flag.namespace() => helper_expr!(
-                            interop_require_wildcard
-                        )
-                        .as_call(self.pure_span(), vec![import_expr.as_arg(), true.as_arg()]),
+                        .as_call(PURE_SP, vec![import_expr.as_arg()]),
+                        ImportInterop::Node if link_flag.namespace() => {
+                            helper_expr!(interop_require_wildcard)
+                                .as_call(PURE_SP, vec![import_expr.as_arg(), true.as_arg()])
+                        }
                         _ => import_expr,
                     }
                 };
 
                 if decl_mod_ident {
                     let stmt = if is_lazy {
-                        Stmt::Decl(Decl::Fn(lazy_require(
-                            import_expr,
-                            mod_ident,
-                            self.const_var_kind,
-                        )))
+                        lazy_require(import_expr, mod_ident, self.const_var_kind).into()
                     } else {
-                        Stmt::Decl(
-                            import_expr
-                                .into_var_decl(self.const_var_kind, mod_ident.into())
-                                .into(),
-                        )
+                        import_expr
+                            .into_var_decl(self.const_var_kind, mod_ident.into())
+                            .into()
                     };
 
                     stmts.push(stmt);
@@ -357,7 +322,7 @@ where
         let mut export_stmts: Vec<Stmt> = Default::default();
 
         if !export_obj_prop_list.is_empty() && !is_export_assign {
-            export_obj_prop_list.sort_by_key(|prop| prop.span());
+            export_obj_prop_list.sort_by_cached_key(|(key, ..)| key.clone());
 
             let mut features = self.available_features;
             let exports = self.exports();
@@ -423,7 +388,7 @@ where
                     let assign_expr = AssignExpr {
                         span,
                         op: op!("="),
-                        left: id.as_pat_or_expr(),
+                        left: self.exports().make_member(id.into()).into(),
                         right: Box::new(require),
                     };
 
@@ -433,7 +398,7 @@ where
                     let mut var_decl = require.into_var_decl(self.const_var_kind, id.into());
                     var_decl.span = span;
 
-                    Stmt::Decl(var_decl.into())
+                    var_decl.into()
                 }
                 .into()
             }
@@ -442,7 +407,10 @@ where
     }
 
     fn exports(&self) -> Ident {
-        quote_ident!(DUMMY_SP.apply_mark(self.unresolved_mark), "exports")
+        quote_ident!(
+            SyntaxContext::empty().apply_mark(self.unresolved_mark),
+            "exports"
+        )
     }
 
     /// emit [cjs-module-lexer](https://github.com/nodejs/cjs-module-lexer) friendly exports list
@@ -450,20 +418,20 @@ where
     /// 0 && (exports.foo = 0);
     /// 0 && (module.exports = { foo: _, bar: _ });
     /// ```
-    fn emit_lexer_exports_init(&mut self, export_id_list: &[ObjPropKeyIdent]) -> Option<Stmt> {
+    fn emit_lexer_exports_init(&mut self, export_id_list: &[ExportKV]) -> Option<Stmt> {
         match export_id_list.len() {
             0 => None,
             1 => {
                 let expr: Expr = 0.into();
 
-                let key_value = &export_id_list[0];
-                let prop = prop_name(key_value.key(), DUMMY_SP).into();
+                let (key, export_item) = &export_id_list[0];
+                let prop = prop_name(key, Default::default()).into();
                 let export_binding = MemberExpr {
                     obj: Box::new(self.exports().into()),
-                    span: key_value.span(),
+                    span: export_item.export_name_span().0,
                     prop,
                 };
-                let expr = expr.make_assign_to(op!("="), export_binding.as_pat_or_expr());
+                let expr = expr.make_assign_to(op!("="), export_binding.into());
                 let expr = BinExpr {
                     span: DUMMY_SP,
                     op: op!("&&"),
@@ -476,7 +444,7 @@ where
             _ => {
                 let props = export_id_list
                     .iter()
-                    .map(|key_value| prop_name(key_value.key(), DUMMY_SP))
+                    .map(|(key, ..)| prop_name(key, Default::default()))
                     .map(|key| KeyValueProp {
                         key: key.into(),
                         // `cjs-module-lexer` only support identifier as value
@@ -494,7 +462,12 @@ where
                 }
                 .make_assign_to(
                     op!("="),
-                    member_expr!(DUMMY_SP.apply_mark(self.unresolved_mark), module.exports).into(),
+                    member_expr!(
+                        SyntaxContext::empty().apply_mark(self.unresolved_mark),
+                        Default::default(),
+                        module.exports
+                    )
+                    .into(),
                 );
 
                 let expr = BinExpr {
@@ -521,7 +494,7 @@ where
                     self.resolver
                         .make_require_call(self.unresolved_mark, src.clone(), DUMMY_SP);
 
-                Expr::Ident(quote_ident!("__export")).as_call(DUMMY_SP, vec![import_expr.as_arg()])
+                quote_ident!("__export").as_call(DUMMY_SP, vec![import_expr.as_arg()])
             })
             .reduce(|left, right| {
                 BinExpr {
@@ -542,20 +515,6 @@ where
                 .into_stmt()
             })
     }
-
-    fn pure_span(&self) -> Span {
-        let mut span = DUMMY_SP;
-
-        if self.config.import_interop().is_none() {
-            return span;
-        }
-
-        if let Some(comments) = &self.comments {
-            span = Span::dummy_with_cmt();
-            comments.add_pure_comment(span.lo);
-        }
-        span
-    }
 }
 
 /// ```javascript
@@ -565,7 +524,6 @@ where
 /// ```
 pub(crate) fn cjs_dynamic_import(
     span: Span,
-    pure_span: Span,
     args: Vec<ExprOrSpread>,
     require: Ident,
     import_interop: ImportInterop,
@@ -575,12 +533,12 @@ pub(crate) fn cjs_dynamic_import(
     let p = private_ident!("p");
 
     let (resolve_args, callback_params, require_args) = if is_lit_path {
-        (vec![], vec![], args)
+        (Vec::new(), Vec::new(), args)
     } else {
         (args, vec![p.clone().into()], vec![p.as_arg()])
     };
 
-    let then = member_expr!(DUMMY_SP, Promise.resolve)
+    let then = member_expr!(Default::default(), Default::default(), Promise.resolve)
         // TODO: handle import assert
         .as_call(DUMMY_SP, resolve_args)
         .make_member(quote_ident!("then"));
@@ -591,10 +549,10 @@ pub(crate) fn cjs_dynamic_import(
         match import_interop {
             ImportInterop::None => require,
             ImportInterop::Swc => {
-                helper_expr!(interop_require_wildcard).as_call(pure_span, vec![require.as_arg()])
+                helper_expr!(interop_require_wildcard).as_call(PURE_SP, vec![require.as_arg()])
             }
             ImportInterop::Node => helper_expr!(interop_require_wildcard)
-                .as_call(pure_span, vec![require.as_arg(), true.as_arg()]),
+                .as_call(PURE_SP, vec![require.as_arg(), true.as_arg()]),
         }
     };
 
@@ -613,7 +571,11 @@ fn cjs_import_meta_url(span: Span, require: Ident, unresolved_mark: Mark) -> Exp
         .make_member(quote_ident!("pathToFileURL"))
         .as_call(
             DUMMY_SP,
-            vec![quote_ident!(DUMMY_SP.apply_mark(unresolved_mark), "__filename").as_arg()],
+            vec![quote_ident!(
+                SyntaxContext::empty().apply_mark(unresolved_mark),
+                "__filename"
+            )
+            .as_arg()],
         )
         .make_member(quote_ident!("toString"))
         .as_call(span, Default::default())
@@ -636,7 +598,7 @@ pub fn lazy_require(expr: Expr, mod_ident: Ident, var_kind: VarDeclKind) -> FnDe
         .clone()
         .into_lazy_fn(Default::default())
         .into_fn_expr(None)
-        .make_assign_to(op!("="), mod_ident.clone().as_pat_or_expr())
+        .make_assign_to(op!("="), mod_ident.clone().into())
         .into_stmt();
     let return_stmt = data.into_return_stmt().into();
 
@@ -650,11 +612,11 @@ pub fn lazy_require(expr: Expr, mod_ident: Ident, var_kind: VarDeclKind) -> FnDe
             body: Some(BlockStmt {
                 span: DUMMY_SP,
                 stmts: vec![data_stmt, overwrite_stmt, return_stmt],
+                ..Default::default()
             }),
             is_generator: false,
             is_async: false,
-            type_params: None,
-            return_type: None,
+            ..Default::default()
         }
         .into(),
     }

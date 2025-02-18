@@ -8,29 +8,20 @@ use std::{
 };
 
 use anyhow::{anyhow, Error};
-use once_cell::sync::Lazy;
+use rustc_hash::FxHashMap;
 use serde_json::json;
 #[cfg(feature = "__rkyv")]
 use swc_common::plugin::serialized::PluginSerializedBytes;
-use swc_common::{collections::AHashMap, plugin::metadata::TransformPluginMetadataContext, Mark};
-use swc_ecma_ast::{CallExpr, Callee, EsVersion, Expr, Lit, MemberExpr, Program, Str};
+use swc_common::{plugin::metadata::TransformPluginMetadataContext, Mark};
+use swc_ecma_ast::{EsVersion, Program};
 use swc_ecma_parser::{parse_file_as_program, Syntax};
-use swc_ecma_visit::Visit;
-
-static TARGET_DIR: Lazy<PathBuf> = Lazy::new(|| {
-    cargo_metadata::MetadataCommand::new()
-        .no_deps()
-        .exec()
-        .unwrap()
-        .target_directory
-        .into()
-});
+use testing::CARGO_TARGET_DIR;
 
 /// Returns the path to the built plugin
 fn build_plugin(dir: &Path, crate_name: &str) -> Result<PathBuf, Error> {
     {
         let mut cmd = Command::new("cargo");
-        cmd.env("CARGO_TARGET_DIR", &*TARGET_DIR);
+        cmd.env("CARGO_TARGET_DIR", &*CARGO_TARGET_DIR);
         cmd.current_dir(dir);
         cmd.args(["build", "--release", "--target=wasm32-wasi"])
             .stderr(Stdio::inherit());
@@ -45,7 +36,7 @@ fn build_plugin(dir: &Path, crate_name: &str) -> Result<PathBuf, Error> {
         }
     }
 
-    for entry in fs::read_dir(&TARGET_DIR.join("wasm32-wasi").join("release"))? {
+    for entry in fs::read_dir(CARGO_TARGET_DIR.join("wasm32-wasi").join("release"))? {
         let entry = entry?;
 
         let s = entry.file_name().to_string_lossy().into_owned();
@@ -55,27 +46,6 @@ fn build_plugin(dir: &Path, crate_name: &str) -> Result<PathBuf, Error> {
     }
 
     Err(anyhow!("Could not find built plugin"))
-}
-
-struct TestVisitor {
-    pub plugin_transform_found: bool,
-}
-
-impl Visit for TestVisitor {
-    fn visit_call_expr(&mut self, call: &CallExpr) {
-        if let Callee::Expr(expr) = &call.callee {
-            if let Expr::Member(MemberExpr { obj, .. }) = &**expr {
-                if let Expr::Ident(ident) = &**obj {
-                    if ident.sym == *"console" {
-                        let args = &*(call.args[0].expr);
-                        if let Expr::Lit(Lit::Str(Str { value, .. })) = args {
-                            self.plugin_transform_found = value == "changed_via_plugin";
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 #[cfg(feature = "__rkyv")]
@@ -91,82 +61,86 @@ fn issue_6404() -> Result<(), Error> {
         "swc_issue_6404",
     )?;
 
-    dbg!("Built!");
+    tokio::runtime::Runtime::new().unwrap().block_on(async {
+        dbg!("Built!");
 
-    // run single plugin
-    testing::run_test(false, |cm, _handler| {
-        let fm = cm
-            .load_file("../swc_ecma_minifier/benches/full/typescript.js".as_ref())
+        // run single plugin
+        testing::run_test(false, |cm, _handler| {
+            let fm = cm
+                .load_file("../swc_ecma_minifier/benches/full/typescript.js".as_ref())
+                .unwrap();
+
+            let program = parse_file_as_program(
+                &fm,
+                Syntax::Es(Default::default()),
+                EsVersion::latest(),
+                None,
+                &mut Vec::new(),
+            )
             .unwrap();
 
-        let program = parse_file_as_program(
-            &fm,
-            Syntax::Es(Default::default()),
-            EsVersion::latest(),
-            None,
-            &mut vec![],
-        )
-        .unwrap();
+            let program =
+                PluginSerializedBytes::try_serialize(&VersionedSerializable::new(program))
+                    .expect("Should serializable");
+            let experimental_metadata: FxHashMap<String, String> = [
+                (
+                    "TestExperimental".to_string(),
+                    "ExperimentalValue".to_string(),
+                ),
+                ("OtherTest".to_string(), "OtherVal".to_string()),
+            ]
+            .into_iter()
+            .collect();
 
-        let program = PluginSerializedBytes::try_serialize(&VersionedSerializable::new(program))
-            .expect("Should serializable");
-        let experimental_metadata: AHashMap<String, String> = [
-            (
-                "TestExperimental".to_string(),
-                "ExperimentalValue".to_string(),
-            ),
-            ("OtherTest".to_string(), "OtherVal".to_string()),
-        ]
-        .into_iter()
-        .collect();
+            let raw_module_bytes =
+                std::fs::read(&plugin_path).expect("Should able to read plugin bytes");
+            let store = wasmer::Store::default();
+            let module = wasmer::Module::new(&store, raw_module_bytes).unwrap();
 
-        let raw_module_bytes =
-            std::fs::read(&plugin_path).expect("Should able to read plugin bytes");
-        let store = wasmer::Store::default();
-        let module = wasmer::Module::new(&store, raw_module_bytes).unwrap();
+            let plugin_module =
+                swc_plugin_runner::plugin_module_bytes::CompiledPluginModuleBytes::new(
+                    plugin_path
+                        .as_os_str()
+                        .to_str()
+                        .expect("Should able to get path")
+                        .to_string(),
+                    module,
+                    store,
+                );
 
-        let plugin_module = swc_plugin_runner::plugin_module_bytes::CompiledPluginModuleBytes::new(
-            plugin_path
-                .as_os_str()
-                .to_str()
-                .expect("Should able to get path")
-                .to_string(),
-            module,
-            store,
-        );
-
-        let mut plugin_transform_executor = swc_plugin_runner::create_plugin_transform_executor(
-            &cm,
-            &Mark::new(),
-            &Arc::new(TransformPluginMetadataContext::new(
+            let mut plugin_transform_executor = swc_plugin_runner::create_plugin_transform_executor(
+                &cm,
+                &Mark::new(),
+                &Arc::new(TransformPluginMetadataContext::new(
+                    None,
+                    "development".to_string(),
+                    Some(experimental_metadata),
+                )),
+                Box::new(plugin_module),
+                Some(json!({ "pluginConfig": "testValue" })),
                 None,
-                "development".to_string(),
-                Some(experimental_metadata),
-            )),
-            Box::new(plugin_module),
-            Some(json!({ "pluginConfig": "testValue" })),
-            None,
-        );
+            );
 
-        /* [TODO]: reenable this test
-        assert!(!plugin_transform_executor
-            .plugin_core_diag
-            .pkg_version
-            .is_empty());
-         */
+            /* [TODO]: reenable this test
+            assert!(!plugin_transform_executor
+                .plugin_core_diag
+                .pkg_version
+                .is_empty());
+             */
 
-        let program_bytes = plugin_transform_executor
-            .transform(&program, Some(false))
-            .expect("Plugin should apply transform");
+            let program_bytes = plugin_transform_executor
+                .transform(&program, Some(false))
+                .expect("Plugin should apply transform");
 
-        let _: Program = program_bytes
-            .deserialize()
-            .expect("Should able to deserialize")
-            .into_inner();
+            let _: Program = program_bytes
+                .deserialize()
+                .expect("Should able to deserialize")
+                .into_inner();
 
-        Ok(())
-    })
-    .expect("Should able to run single plugin transform");
+            Ok(())
+        })
+        .expect("Should able to run single plugin transform");
+    });
 
     Ok(())
 }

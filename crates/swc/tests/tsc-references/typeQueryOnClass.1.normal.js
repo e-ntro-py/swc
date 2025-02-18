@@ -14,7 +14,7 @@ var C = /*#__PURE__*/ function() {
     }
     var _proto = C.prototype;
     _proto.baz = function baz(x) {
-        return "";
+        return '';
     };
     C.foo = function foo(x) {};
     C.bar = function bar(x) {};
@@ -49,14 +49,10 @@ var C = /*#__PURE__*/ function() {
     ]);
     return C;
 }();
-(function() {
-    C.sa = 1;
-})();
-(function() {
-    C.sb = function() {
-        return 1;
-    };
-})();
+C.sa = 1;
+C.sb = function() {
+    return 1;
+};
 var c;
 // BUG 820454
 var r1;

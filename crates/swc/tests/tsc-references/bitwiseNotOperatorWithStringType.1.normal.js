@@ -19,11 +19,7 @@ var A = /*#__PURE__*/ function() {
     };
     return A;
 }();
-var M;
-(function(M) {
-    var n;
-    M.n = n;
-})(M || (M = {}));
+(function(M) {})(M || (M = {}));
 var objA = new A();
 // string type var
 var ResultIsNumber1 = ~STRING;
@@ -56,3 +52,4 @@ var ResultIsNumber14 = ~~~(STRING + STRING);
 ~STRING1;
 ~foo();
 ~objA.a, M.n;
+var M;

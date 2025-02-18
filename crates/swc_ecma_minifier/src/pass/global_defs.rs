@@ -28,7 +28,7 @@ struct GlobalDefs {
 }
 
 impl CompilerPass for GlobalDefs {
-    fn name() -> Cow<'static, str> {
+    fn name(&self) -> Cow<'static, str> {
         Cow::Borrowed("global-defs")
     }
 }
@@ -53,13 +53,13 @@ impl VisitMut for GlobalDefs {
 
         match n {
             Expr::Ident(i) => {
-                if i.span.ctxt != self.unresolved_ctxt && i.span.ctxt != self.top_level_ctxt {
+                if i.ctxt != self.unresolved_ctxt && i.ctxt != self.top_level_ctxt {
                     return;
                 }
             }
             Expr::Member(MemberExpr { obj, .. }) => {
                 if let Expr::Ident(i) = &**obj {
-                    if i.span.ctxt != self.unresolved_ctxt && i.span.ctxt != self.top_level_ctxt {
+                    if i.ctxt != self.unresolved_ctxt && i.ctxt != self.top_level_ctxt {
                         return;
                     }
                 }
@@ -101,7 +101,24 @@ fn should_replace(pred: &Expr, node: &Expr) -> bool {
         return true;
     }
 
-    match (pred, node) {
+    fn match_node(node: &Expr) -> Option<(&Expr, &MemberProp)> {
+        match node {
+            Expr::Member(MemberExpr {
+                obj: node_obj,
+                prop: nodes,
+                ..
+            }) => Some((node_obj, nodes)),
+
+            Expr::OptChain(OptChainExpr { base, .. }) => {
+                let base = base.as_member()?;
+                Some((&base.obj, &base.prop))
+            }
+
+            _ => None,
+        }
+    }
+
+    match (pred, match_node(node)) {
         // super?. is invalid
         (
             Expr::Member(MemberExpr {
@@ -109,20 +126,7 @@ fn should_replace(pred: &Expr, node: &Expr) -> bool {
                 prop: pred,
                 ..
             }),
-            Expr::Member(MemberExpr {
-                obj: node_obj,
-                prop: nodes,
-                ..
-            })
-            | Expr::OptChain(OptChainExpr {
-                base:
-                    box OptChainBase::Member(MemberExpr {
-                        obj: node_obj,
-                        prop: nodes,
-                        ..
-                    }),
-                ..
-            }),
+            Some((node_obj, nodes)),
         ) if !(pred.is_computed() || nodes.is_computed()) => {
             if !pred.eq_ignore_span(nodes) {
                 return false;

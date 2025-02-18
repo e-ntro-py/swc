@@ -1,7 +1,5 @@
 //// [importsImplicitlyReadonly.ts]
-"use strict";
 //// [a.ts]
-"use strict";
 Object.defineProperty(exports, "__esModule", {
     value: !0
 }), function(target, all) {
@@ -19,7 +17,6 @@ Object.defineProperty(exports, "__esModule", {
 });
 var x = 1, y = 1;
 //// [b.ts]
-//! 
 //!   x cannot reassign to an imported binding
 //!    ,-[1:1]
 //!  1 | import { x, y } from "./a";
@@ -35,7 +32,6 @@ var x = 1, y = 1;
 //!  8 | a1.x = 1;  // Error
 //!  9 | a1.y = 1;  // Error
 //!    `----
-//! 
 //!   x cannot reassign to an imported binding
 //!     ,-[1:1]
 //!   1 | import { x, y } from "./a";

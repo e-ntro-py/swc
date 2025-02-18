@@ -3,8 +3,9 @@
 
 use std::ops::{Deref, DerefMut};
 
+use rustc_hash::FxHashMap;
 use swc_atoms::{Atom, JsWord};
-use swc_common::{collections::AHashMap, comments::Comments, input::StringInput, BytePos, Span};
+use swc_common::{comments::Comments, input::StringInput, BytePos, Span};
 use swc_ecma_ast::*;
 
 pub use self::input::{Capturing, Tokens, TokensInput};
@@ -13,7 +14,7 @@ use crate::{
     error::SyntaxError,
     lexer::Lexer,
     token::{Token, Word},
-    Context, EsVersion, Syntax, TsConfig,
+    Context, EsVersion, Syntax, TsSyntax,
 };
 #[cfg(test)]
 extern crate test;
@@ -34,6 +35,7 @@ mod pat;
 mod stmt;
 #[cfg(test)]
 mod tests;
+#[cfg(feature = "typescript")]
 mod typescript;
 mod util;
 
@@ -55,7 +57,7 @@ struct State {
 
     found_module_item: bool,
     /// Start position of an AST node and the span of its trailing comma.
-    trailing_commas: AHashMap<BytePos, Span>,
+    trailing_commas: FxHashMap<BytePos, Span>,
 }
 
 impl<'a> Parser<Lexer<'a>> {
@@ -66,10 +68,13 @@ impl<'a> Parser<Lexer<'a>> {
 
 impl<I: Tokens> Parser<I> {
     pub fn new_from(mut input: I) -> Self {
+        #[cfg(feature = "typescript")]
         let in_declare = matches!(
             input.syntax(),
-            Syntax::Typescript(TsConfig { dts: true, .. })
+            Syntax::Typescript(TsSyntax { dts: true, .. })
         );
+        #[cfg(not(feature = "typescript"))]
+        let in_declare = false;
         let ctx = Context {
             in_declare,
             ..input.ctx()
@@ -86,8 +91,8 @@ impl<I: Tokens> Parser<I> {
         self.input().take_errors()
     }
 
-    pub(crate) fn target(&self) -> EsVersion {
-        self.input.target()
+    pub fn take_script_module_errors(&mut self) -> Vec<Error> {
+        self.input().take_script_module_errors()
     }
 
     pub fn parse_script(&mut self) -> PResult<Script> {
@@ -220,7 +225,7 @@ impl<I: Tokens> Parser<I> {
     }
 
     #[cold]
-    fn emit_err(&self, span: Span, error: SyntaxError) {
+    fn emit_err(&mut self, span: Span, error: SyntaxError) {
         if self.ctx().ignore_error || !self.syntax().early_errors() {
             return;
         }
@@ -229,9 +234,19 @@ impl<I: Tokens> Parser<I> {
     }
 
     #[cold]
-    fn emit_error(&self, error: Error) {
+    fn emit_error(&mut self, error: Error) {
         if self.ctx().ignore_error || !self.syntax().early_errors() {
             return;
+        }
+
+        if matches!(self.input.cur(), Some(Token::Error(..))) {
+            let err = self.input.bump();
+            match err {
+                Token::Error(err) => {
+                    self.input_ref().add_error(err);
+                }
+                _ => unreachable!(),
+            }
         }
 
         self.input_ref().add_error(error);

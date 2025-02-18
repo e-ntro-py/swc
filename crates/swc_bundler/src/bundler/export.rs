@@ -1,5 +1,6 @@
 use indexmap::IndexMap;
-use swc_atoms::{js_word, JsWord};
+use rustc_hash::FxBuildHasher;
+use swc_atoms::JsWord;
 use swc_common::{FileName, SyntaxContext};
 use swc_ecma_ast::*;
 use swc_ecma_utils::find_pat_ids;
@@ -9,7 +10,7 @@ use super::{
     load::{Source, Specifier},
     Bundler,
 };
-use crate::{id::Id, load::Load, resolve::Resolve};
+use crate::{id::Id, load::Load, resolve::Resolve, util::ExportMetadata};
 
 impl<L, R> Bundler<'_, L, R>
 where
@@ -42,7 +43,7 @@ where
 #[derive(Debug, Default)]
 pub(super) struct RawExports {
     /// Key is None if it's exported from the module itself.
-    pub items: IndexMap<Option<Str>, Vec<Specifier>, ahash::RandomState>,
+    pub items: IndexMap<Option<Str>, Vec<Specifier>, FxBuildHasher>,
 }
 
 #[derive(Debug, Default)]
@@ -115,7 +116,7 @@ where
     L: Load,
     R: Resolve,
 {
-    noop_visit_mut_type!();
+    noop_visit_mut_type!(fail);
 
     fn visit_mut_module_item(&mut self, item: &mut ModuleItem) {
         match item {
@@ -183,7 +184,7 @@ where
                     .entry(None)
                     .or_default()
                     .push(Specifier::Specific {
-                        local: Id::new(js_word!("default"), SyntaxContext::empty()),
+                        local: Id::new("default".into(), SyntaxContext::empty()),
                         alias: None,
                     });
             }
@@ -194,7 +195,7 @@ where
                     .entry(None)
                     .or_default()
                     .push(Specifier::Specific {
-                        local: Id::new(js_word!("default"), SyntaxContext::empty()),
+                        local: Id::new("default".into(), SyntaxContext::empty()),
                         alias: None,
                     });
             }
@@ -217,7 +218,7 @@ where
                         ExportSpecifier::Namespace(n) => {
                             match &mut n.name {
                                 ModuleExportName::Ident(name) => {
-                                    name.span.ctxt = self.export_ctxt;
+                                    name.ctxt = self.export_ctxt;
 
                                     need_wrapping = true;
                                     v.push(Specifier::Namespace {
@@ -233,7 +234,7 @@ where
                         ExportSpecifier::Default(d) => {
                             v.push(Specifier::Specific {
                                 local: d.exported.clone().into(),
-                                alias: Some(Id::new(js_word!("default"), SyntaxContext::empty())),
+                                alias: Some(Id::new("default".into(), SyntaxContext::empty())),
                             });
                         }
                         ExportSpecifier::Named(n) => {
@@ -244,19 +245,19 @@ where
                                 }
                             };
                             if let Some((_, export_ctxt)) = ctxt {
-                                orig.span.ctxt = export_ctxt;
+                                orig.ctxt = export_ctxt;
                             }
 
                             match &mut n.exported {
                                 Some(ModuleExportName::Ident(exported)) => {
-                                    exported.span.ctxt = self.export_ctxt;
+                                    exported.ctxt = self.export_ctxt;
                                 }
                                 Some(ModuleExportName::Str(..)) => {
                                     unimplemented!("module string names unimplemented")
                                 }
                                 None => {
                                     let mut exported: Ident = orig.clone();
-                                    exported.span.ctxt = self.export_ctxt;
+                                    exported.ctxt = self.export_ctxt;
                                     n.exported = Some(ModuleExportName::Ident(exported));
                                 }
                             }
@@ -290,7 +291,11 @@ where
             ModuleItem::ModuleDecl(ModuleDecl::ExportAll(all)) => {
                 let ctxt = self.ctxt_for(&all.src.value);
                 if let Some((_, export_ctxt)) = ctxt {
-                    all.span.ctxt = export_ctxt;
+                    ExportMetadata {
+                        export_ctxt: Some(export_ctxt),
+                        ..Default::default()
+                    }
+                    .encode(&mut all.with);
                 }
 
                 self.info.items.entry(Some(*all.src.clone())).or_default();

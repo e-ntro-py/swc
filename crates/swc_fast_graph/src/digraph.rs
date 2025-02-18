@@ -6,8 +6,8 @@
 use std::{
     cmp::Ordering,
     fmt,
-    hash::{self, BuildHasherDefault, Hash},
-    iter::{Cloned, DoubleEndedIterator, FromIterator},
+    hash::{self, Hash},
+    iter::Cloned,
     marker::PhantomData,
     ops::Deref,
     slice::Iter,
@@ -25,10 +25,7 @@ use petgraph::{
     },
     Directed, Direction, EdgeType, Incoming, IntoWeightedEdge, Outgoing, Undirected,
 };
-use rustc_hash::FxHasher;
-use swc_common::collections::AHashSet;
-
-type FxBuildHasher = BuildHasherDefault<FxHasher>;
+use rustc_hash::{FxBuildHasher, FxHashSet};
 
 /// A `GraphMap` with directed edges.
 ///
@@ -47,13 +44,13 @@ pub type FastDiGraphMap<N, E> = FastGraphMap<N, E, Directed>;
 ///
 /// - Associated data `N` for nodes and `E` for edges, called *weights*.
 /// - The node weight `N` must implement `Copy` and will be used as node
-/// identifier, duplicated into several places in the data structure.
-/// It must be suitable as a hash table key (implementing `Eq + Hash`).
-/// The node type must also implement `Ord` so that the implementation can
-/// order the pair (`a`, `b`) for an edge connecting any two nodes `a` and `b`.
+///   identifier, duplicated into several places in the data structure. It must
+///   be suitable as a hash table key (implementing `Eq + Hash`). The node type
+///   must also implement `Ord` so that the implementation can order the pair
+///   (`a`, `b`) for an edge connecting any two nodes `a` and `b`.
 /// - `E` can be of arbitrary type.
 /// - Edge type `Ty` that determines whether the graph edges are directed or
-/// undirected.
+///   undirected.
 ///
 /// You can use the type aliases `UnGraphMap` and `DiGraphMap` for convenience.
 ///
@@ -304,7 +301,7 @@ where
         } else {
             exist1
         };
-        let weight = self.edges.remove(&Self::edge_key(a, b));
+        let weight = self.edges.shift_remove(&Self::edge_key(a, b));
         debug_assert!(exist1 == exist2 && exist1 == weight.is_some());
         weight
     }
@@ -418,7 +415,7 @@ where
     ///
     /// 1. Note that node and edge indices in the `Graph` have nothing in common
     ///    with the `GraphMap`s node weights `N`. The node weights `N` are used
-    /// as    node weights in the resulting `Graph`, too.
+    ///    as node weights in the resulting `Graph`, too.
     /// 2. Note that the index type is user-chosen.
     ///
     /// Computes in **O(|V| + |E|)** time (average).
@@ -526,7 +523,7 @@ where
     ty: PhantomData<Ty>,
 }
 
-impl<'a, N, Ty> Iterator for Neighbors<'a, N, Ty>
+impl<N, Ty> Iterator for Neighbors<'_, N, Ty>
 where
     N: NodeTrait,
     Ty: EdgeType,
@@ -555,7 +552,7 @@ where
     ty: PhantomData<Ty>,
 }
 
-impl<'a, N, Ty> Iterator for NeighborsDirected<'a, N, Ty>
+impl<N, Ty> Iterator for NeighborsDirected<'_, N, Ty>
 where
     N: NodeTrait,
     Ty: EdgeType,
@@ -742,8 +739,8 @@ where
 /// with the `Cell<T>` being `TypedArena` allocated.
 pub struct Ptr<'b, T: 'b>(pub &'b T);
 
-impl<'b, T> Copy for Ptr<'b, T> {}
-impl<'b, T> Clone for Ptr<'b, T> {
+impl<T> Copy for Ptr<'_, T> {}
+impl<T> Clone for Ptr<'_, T> {
     fn clone(&self) -> Self {
         *self
     }
@@ -776,7 +773,7 @@ impl<'b, T> Ord for Ptr<'b, T> {
     }
 }
 
-impl<'b, T> Deref for Ptr<'b, T> {
+impl<T> Deref for Ptr<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -784,16 +781,16 @@ impl<'b, T> Deref for Ptr<'b, T> {
     }
 }
 
-impl<'b, T> Eq for Ptr<'b, T> {}
+impl<T> Eq for Ptr<'_, T> {}
 
-impl<'b, T> Hash for Ptr<'b, T> {
+impl<T> Hash for Ptr<'_, T> {
     fn hash<H: hash::Hasher>(&self, st: &mut H) {
         let ptr = (self.0) as *const T;
         ptr.hash(st)
     }
 }
 
-impl<'b, T: fmt::Debug> fmt::Debug for Ptr<'b, T> {
+impl<T: fmt::Debug> fmt::Debug for Ptr<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt(f)
     }
@@ -865,10 +862,10 @@ where
     N: Copy + Ord + Hash,
     Ty: EdgeType,
 {
-    type Map = AHashSet<N>;
+    type Map = FxHashSet<N>;
 
-    fn visit_map(&self) -> AHashSet<N> {
-        AHashSet::with_capacity_and_hasher(self.node_count(), Default::default())
+    fn visit_map(&self) -> FxHashSet<N> {
+        FxHashSet::with_capacity_and_hasher(self.node_count(), Default::default())
     }
 
     fn reset_map(&self, map: &mut Self::Map) {

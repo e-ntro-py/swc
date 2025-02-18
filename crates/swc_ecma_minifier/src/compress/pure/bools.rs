@@ -1,25 +1,24 @@
 use std::mem::swap;
 
-use swc_atoms::js_word;
 use swc_common::{util::take::Take, Spanned};
 use swc_ecma_ast::*;
 use swc_ecma_utils::{ExprCtx, ExprExt, Type, Value};
 
 use super::Pure;
 use crate::{
-    compress::util::{is_pure_undefined, negate, negate_cost},
+    compress::util::{can_absorb_negate, is_eq, is_pure_undefined, negate, negate_cost},
     option::CompressOptions,
     util::make_bool,
 };
 
 impl Pure<'_> {
     pub(super) fn negate_twice(&mut self, e: &mut Expr, is_ret_val_ignored: bool) {
-        negate(&self.expr_ctx, e, false, is_ret_val_ignored);
-        negate(&self.expr_ctx, e, false, is_ret_val_ignored);
+        negate(self.expr_ctx, e, false, is_ret_val_ignored);
+        negate(self.expr_ctx, e, false, is_ret_val_ignored);
     }
 
     pub(super) fn negate(&mut self, e: &mut Expr, in_bool_ctx: bool, is_ret_val_ignored: bool) {
-        negate(&self.expr_ctx, e, in_bool_ctx, is_ret_val_ignored)
+        negate(self.expr_ctx, e, in_bool_ctx, is_ret_val_ignored)
     }
 
     /// `!(a && b)` => `!a || !b`
@@ -43,8 +42,8 @@ impl Pure<'_> {
                     right,
                     ..
                 }) => {
-                    if negate_cost(&self.expr_ctx, left, false, false) >= 0
-                        || negate_cost(&self.expr_ctx, right, false, false) >= 0
+                    if negate_cost(self.expr_ctx, left, false, false) >= 0
+                        || negate_cost(self.expr_ctx, right, false, false) >= 0
                     {
                         return;
                     }
@@ -65,8 +64,8 @@ impl Pure<'_> {
                         ..
                     }) = &mut **arg_of_arg
                     {
-                        if negate_cost(&self.expr_ctx, left, false, false) > 0
-                            || negate_cost(&self.expr_ctx, right, false, false) > 0
+                        if negate_cost(self.expr_ctx, left, false, false) > 0
+                            || negate_cost(self.expr_ctx, right, false, false) > 0
                         {
                             return;
                         }
@@ -81,8 +80,64 @@ impl Pure<'_> {
         }
     }
 
+    pub(super) fn optimize_negate_eq(&mut self, e: &mut Expr) {
+        fn negate_eq(op: BinaryOp) -> BinaryOp {
+            match op {
+                op!("==") => op!("!="),
+                op!("!=") => op!("=="),
+                op!("===") => op!("!=="),
+                op!("!==") => op!("==="),
+                _ => unreachable!(),
+            }
+        }
+
+        if !self.options.bools {
+            return;
+        }
+
+        let Expr::Unary(UnaryExpr {
+            op: op!("!"), arg, ..
+        }) = e
+        else {
+            return;
+        };
+
+        let arg_can_negate = can_absorb_negate(arg, self.expr_ctx);
+
+        match &mut **arg {
+            Expr::Bin(BinExpr { op, .. }) if is_eq(*op) => {
+                self.changed = true;
+                report_change!("bools: Optimizing `!(a == b)` as `a != b`");
+
+                *op = negate_eq(*op);
+
+                *e = *arg.take();
+            }
+            Expr::Bin(BinExpr {
+                op: op @ (op!("&&") | op!("||")),
+                left,
+                right,
+                ..
+            }) if arg_can_negate => {
+                self.changed = true;
+                report_change!("bools: Optimizing `!(a == b && c == d)` as `a != b`");
+
+                *op = match op {
+                    op!("&&") => op!("||"),
+                    op!("||") => op!("&&"),
+                    _ => unreachable!(),
+                };
+
+                self.negate(left, false, false);
+                self.negate(right, false, false);
+                *e = *arg.take();
+            }
+            _ => (),
+        }
+    }
+
     pub(super) fn compress_cmp_with_long_op(&mut self, e: &mut BinExpr) {
-        fn should_optimize(l: &Expr, r: &Expr, opts: &CompressOptions) -> bool {
+        fn should_optimize(l: &Expr, r: &Expr, ctx: ExprCtx, opts: &CompressOptions) -> bool {
             match (l, r) {
                 (
                     Expr::Unary(UnaryExpr {
@@ -92,7 +147,7 @@ impl Pure<'_> {
                 ) => true,
                 _ => {
                     if opts.comparisons {
-                        match (l.get_type(), r.get_type()) {
+                        match (l.get_type(ctx), r.get_type(ctx)) {
                             (Value::Known(lt), Value::Known(rt)) => lt == rt,
 
                             _ => false,
@@ -109,8 +164,8 @@ impl Pure<'_> {
             _ => return,
         }
 
-        if should_optimize(&e.left, &e.right, self.options)
-            || should_optimize(&e.right, &e.left, self.options)
+        if should_optimize(&e.left, &e.right, self.expr_ctx, self.options)
+            || should_optimize(&e.right, &e.left, self.expr_ctx, self.options)
         {
             report_change!("bools: Compressing comparison of `typeof` with literal");
             self.changed = true;
@@ -150,11 +205,11 @@ impl Pure<'_> {
                 right,
                 ..
             }) => {
-                let lt = left.get_type();
-                let rt = right.get_type();
+                let lt = left.get_type(self.expr_ctx);
+                let rt = right.get_type(self.expr_ctx);
 
                 if let (Value::Known(Type::Bool), Value::Known(Type::Bool)) = (lt, rt) {
-                    let rb = right.as_pure_bool(&self.expr_ctx);
+                    let rb = right.as_pure_bool(self.expr_ctx);
                     let rb = match rb {
                         Value::Known(v) => v,
                         Value::Unknown => return,
@@ -194,9 +249,9 @@ impl Pure<'_> {
             _ => return,
         };
 
-        if delete.arg.may_have_side_effects(&ExprCtx {
+        if delete.arg.may_have_side_effects(ExprCtx {
             is_unresolved_ref_safe: true,
-            ..self.expr_ctx.clone()
+            ..self.expr_ctx
         }) {
             return;
         }
@@ -207,22 +262,13 @@ impl Pure<'_> {
             | Expr::Bin(BinExpr { op: op!("&&"), .. })
             | Expr::Bin(BinExpr { op: op!("||"), .. }) => true,
             // V8 and terser test ref have different opinion.
-            Expr::Ident(Ident {
-                sym: js_word!("Infinity"),
-                ..
-            }) => false,
-            Expr::Ident(Ident {
-                sym: js_word!("undefined"),
-                ..
-            }) => false,
-            Expr::Ident(Ident {
-                sym: js_word!("NaN"),
-                ..
-            }) => false,
+            Expr::Ident(Ident { sym, .. }) if &**sym == "Infinity" => false,
+            Expr::Ident(Ident { sym, .. }) if &**sym == "undefined" => false,
+            Expr::Ident(Ident { sym, .. }) if &**sym == "NaN" => false,
 
-            e if is_pure_undefined(&self.expr_ctx, e) => true,
+            e if is_pure_undefined(self.expr_ctx, e) => true,
 
-            Expr::Ident(i) => i.span.ctxt != self.expr_ctx.unresolved_ctxt,
+            Expr::Ident(i) => i.ctxt != self.expr_ctx.unresolved_ctxt,
 
             // NaN
             Expr::Bin(BinExpr {
@@ -230,7 +276,7 @@ impl Pure<'_> {
                 right,
                 ..
             }) => {
-                let rn = right.as_pure_number(&self.expr_ctx);
+                let rn = right.as_pure_number(self.expr_ctx);
                 let v = if let Value::Known(rn) = rn {
                     rn != 0.0
                 } else {
@@ -243,10 +289,11 @@ impl Pure<'_> {
                     self.changed = true;
                     let span = delete.arg.span();
                     report_change!("booleans: Compressing `delete` as sequence expression");
-                    *e = Expr::Seq(SeqExpr {
+                    *e = SeqExpr {
                         span,
                         exprs: vec![delete.arg.take(), Box::new(make_bool(span, true))],
-                    });
+                    }
+                    .into();
                     return;
                 }
             }
@@ -275,7 +322,7 @@ impl Pure<'_> {
                         let last = exprs.last_mut().unwrap();
                         self.optimize_expr_in_bool_ctx(last, false);
                         // Negate last element.
-                        negate(&self.expr_ctx, last, false, false);
+                        negate(self.expr_ctx, last, false, false);
                     }
 
                     *n = *e.arg.take();
@@ -331,11 +378,12 @@ impl Pure<'_> {
                     report_change!("Optimizing: number => number (in bool context)");
 
                     self.changed = true;
-                    *n = Expr::Lit(Lit::Num(Number {
+                    *n = Lit::Num(Number {
                         span: *span,
                         value: if *value == 0.0 { 1.0 } else { 0.0 },
                         raw: None,
-                    }))
+                    })
+                    .into()
                 }
 
                 Expr::Unary(UnaryExpr {
@@ -358,23 +406,26 @@ impl Pure<'_> {
 
                 match &**arg {
                     Expr::Ident(..) => {
-                        *n = Expr::Lit(Lit::Num(Number {
+                        *n = Lit::Num(Number {
                             span: *span,
                             value: 1.0,
                             raw: None,
-                        }))
+                        })
+                        .into()
                     }
                     _ => {
                         // Return value of typeof is always truthy
-                        let true_expr = Box::new(Expr::Lit(Lit::Num(Number {
+                        let true_expr = Lit::Num(Number {
                             span: *span,
                             value: 1.0,
                             raw: None,
-                        })));
-                        *n = Expr::Seq(SeqExpr {
+                        })
+                        .into();
+                        *n = SeqExpr {
                             span: *span,
                             exprs: vec![arg.take(), true_expr],
-                        })
+                        }
+                        .into()
                     }
                 }
             }
@@ -383,11 +434,12 @@ impl Pure<'_> {
                 if !is_ignore {
                     report_change!("Converting string as boolean expressions");
                     self.changed = true;
-                    *n = Expr::Lit(Lit::Num(Number {
+                    *n = Lit::Num(Number {
                         span: s.span,
                         value: if s.value.is_empty() { 0.0 } else { 1.0 },
                         raw: None,
-                    }));
+                    })
+                    .into();
                 }
             }
 
@@ -398,11 +450,12 @@ impl Pure<'_> {
                 if self.options.bools {
                     report_change!("booleans: Converting number as boolean expressions");
                     self.changed = true;
-                    *n = Expr::Lit(Lit::Num(Number {
+                    *n = Lit::Num(Number {
                         span: num.span,
                         value: if num.value == 0.0 { 0.0 } else { 1.0 },
                         raw: None,
-                    }));
+                    })
+                    .into();
                 }
             }
 
@@ -413,7 +466,7 @@ impl Pure<'_> {
                 ..
             }) => {
                 // Optimize if (a ?? false); as if (a);
-                if let Value::Known(false) = right.as_pure_bool(&self.expr_ctx) {
+                if let Value::Known(false) = right.as_pure_bool(self.expr_ctx) {
                     report_change!(
                         "Dropping right operand of `??` as it's always false (in bool context)"
                     );
@@ -430,7 +483,7 @@ impl Pure<'_> {
             }) => {
                 // `a || false` => `a` (as it will be casted to boolean anyway)
 
-                if let Value::Known(false) = right.as_pure_bool(&self.expr_ctx) {
+                if let Value::Known(false) = right.as_pure_bool(self.expr_ctx) {
                     report_change!("bools: `expr || false` => `expr` (in bool context)");
                     self.changed = true;
                     *n = *left.take();
@@ -438,7 +491,7 @@ impl Pure<'_> {
             }
 
             _ => {
-                let v = n.as_pure_bool(&self.expr_ctx);
+                let v = n.as_pure_bool(self.expr_ctx);
                 if let Value::Known(v) = v {
                     let span = n.span();
                     report_change!("Optimizing expr as {} (in bool context)", v);
@@ -456,13 +509,7 @@ impl Pure<'_> {
 
             (Expr::Update(..) | Expr::Assign(..), Expr::Lit(..)) if is_for_rel => false,
 
-            (
-                Expr::Ident(..),
-                Expr::Ident(Ident {
-                    sym: js_word!("undefined"),
-                    ..
-                }),
-            ) => true,
+            (Expr::Ident(..), Expr::Ident(Ident { sym: r_s, .. })) if &**r_s == "undefined" => true,
 
             (
                 Expr::Member(..)
@@ -484,7 +531,7 @@ impl Pure<'_> {
             ) if matches!(&**arg, Expr::Lit(..)) => true,
 
             (Expr::Member(..) | Expr::Call(..) | Expr::Assign(..), r)
-                if is_pure_undefined(&self.expr_ctx, r) =>
+                if is_pure_undefined(self.expr_ctx, r) =>
             {
                 true
             }
@@ -516,31 +563,38 @@ impl Pure<'_> {
     }
 
     fn try_swap_bin(&mut self, op: BinaryOp, left: &mut Expr, right: &mut Expr) -> bool {
-        fn is_supported(op: BinaryOp) -> bool {
-            matches!(
-                op,
-                op!("===")
-                    | op!("!==")
-                    | op!("==")
-                    | op!("!=")
-                    | op!("&")
-                    | op!("^")
-                    | op!("|")
-                    | op!("*")
-            )
-        }
+        let can_swap = matches!(
+            op,
+            op!("===")
+                | op!("!==")
+                | op!("==")
+                | op!("!=")
+                | op!("&")
+                | op!("^")
+                | op!("|")
+                | op!("*")
+        ) && self.can_swap_bin_operands(left, right, false);
 
-        if !is_supported(op) {
-            return false;
-        }
+        // a * (b / c) -> b / c * a
+        let can_swap = can_swap
+            || (matches!(op, op!("*") | op!("&") | op!("|") | op!("^"))
+                && right
+                    .as_bin()
+                    .filter(|b| b.op.precedence() == op.precedence())
+                    .is_some()
+                && left
+                    .as_bin()
+                    .filter(|b| b.op.precedence() == op.precedence())
+                    .is_none()
+                && !left.may_have_side_effects(self.expr_ctx)
+                && !right.may_have_side_effects(self.expr_ctx));
 
-        if self.can_swap_bin_operands(left, right, false) {
+        if can_swap {
             report_change!("Swapping operands of binary expession");
             swap(left, right);
-            return true;
         }
 
-        false
+        can_swap
     }
 
     /// Swap lhs and rhs in certain conditions.

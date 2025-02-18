@@ -18,20 +18,20 @@ define([
         });
     }
     _export(exports, {
-        fn: function() {
-            return fn;
-        },
         cl1: function() {
             return cl1;
-        },
-        obj: function() {
-            return obj;
         },
         cl2: function() {
             return cl2;
         },
+        fn: function() {
+            return fn;
+        },
         l: function() {
             return l;
+        },
+        obj: function() {
+            return obj;
         }
     });
     function fn() {
@@ -150,7 +150,7 @@ define([
             })
         };
     };
-    var l = function() {
+    var l = /*#__PURE__*/ function() {
         var _ref = _async_to_generator._(function() {
             var req;
             return _ts_generator._(this, function(_state) {

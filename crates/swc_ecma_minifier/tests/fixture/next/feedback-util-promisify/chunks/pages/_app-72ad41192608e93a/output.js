@@ -3,23 +3,24 @@
         888
     ],
     {
-        3454: function(module, __unused_webpack_exports, __webpack_require__) {
+        /***/ 3454: /***/ function(module, __unused_webpack_exports, __webpack_require__) {
             "use strict";
             var ref, ref1;
             module.exports = (null === (ref = __webpack_require__.g.process) || void 0 === ref ? void 0 : ref.env) && "object" == typeof (null === (ref1 = __webpack_require__.g.process) || void 0 === ref1 ? void 0 : ref1.env) ? __webpack_require__.g.process : __webpack_require__(7663);
-        },
-        1780: function(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
+        //# sourceMappingURL=process.js.map
+        /***/ },
+        /***/ 1780: /***/ function(__unused_webpack_module, __unused_webpack_exports, __webpack_require__) {
             (window.__NEXT_P = window.__NEXT_P || []).push([
                 "/_app",
                 function() {
                     return __webpack_require__(8484);
                 }
             ]);
-        },
-        8484: function(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
+        /***/ },
+        /***/ 8484: /***/ function(__unused_webpack_module, __webpack_exports__, __webpack_require__) {
             "use strict";
             __webpack_require__.r(__webpack_exports__);
-            var fn, _ref, _Users_kdy1_projects_lab_swc_minify_issue_node_modules_next_dist_compiled_regenerator_runtime_runtime_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(4051), _Users_kdy1_projects_lab_swc_minify_issue_node_modules_next_dist_compiled_regenerator_runtime_runtime_js__WEBPACK_IMPORTED_MODULE_0___default = __webpack_require__.n(_Users_kdy1_projects_lab_swc_minify_issue_node_modules_next_dist_compiled_regenerator_runtime_runtime_js__WEBPACK_IMPORTED_MODULE_0__), react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(5893), react__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(7294), util__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(9720), util__WEBPACK_IMPORTED_MODULE_3___default = __webpack_require__.n(util__WEBPACK_IMPORTED_MODULE_3__);
+            /* harmony import */ var fn, _ref, _Users_kdy1_projects_lab_swc_minify_issue_node_modules_next_dist_compiled_regenerator_runtime_runtime_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(4051), _Users_kdy1_projects_lab_swc_minify_issue_node_modules_next_dist_compiled_regenerator_runtime_runtime_js__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/ __webpack_require__.n(_Users_kdy1_projects_lab_swc_minify_issue_node_modules_next_dist_compiled_regenerator_runtime_runtime_js__WEBPACK_IMPORTED_MODULE_0__), react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(5893), react__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(7294), util__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(9720), util__WEBPACK_IMPORTED_MODULE_3___default = /*#__PURE__*/ __webpack_require__.n(util__WEBPACK_IMPORTED_MODULE_3__);
             function asyncGeneratorStep(gen, resolve, reject, _next, _throw, key, arg) {
                 try {
                     var info = gen[key](arg), value = info.value;
@@ -35,6 +36,7 @@
                     for(;;)switch(_ctx.prev = _ctx.next){
                         case 0:
                             try {
+                                // load Branch
                                 (function(b, r, a, n, c, h, _, s, d, k) {
                                     if (!b[n] || !b[n]._q) {
                                         for(; s < _.length;)c(h, _[s++]);
@@ -51,6 +53,8 @@
                                     _q: [],
                                     _v: 1
                                 }, "addListener applyCode autoAppIndex banner closeBanner closeJourney creditHistory credits data deepview deepviewCta first getCode init link logout redeem referrals removeListener sendSMS setBranchViewData setIdentity track validateCode trackCommerceEvent logEvent disableTracking".split(" "), 0), window.branch.initAsync = util__WEBPACK_IMPORTED_MODULE_3___default().promisify(window.branch.init);
+                            // const branchData = await window.branch.initAsync('key_live_YOUR_KEY_GOES_HERE');
+                            // return branchData;
                             } catch (error) {
                                 console.error(error);
                             }
@@ -74,11 +78,11 @@
             }, function() {
                 return _ref.apply(this, arguments);
             });
-            __webpack_exports__.default = function(param) {
+            /* harmony default export */ __webpack_exports__.default = function(param) {
                 var Component = param.Component, pageProps = param.pageProps;
                 return (0, react__WEBPACK_IMPORTED_MODULE_2__.useEffect)(function() {
                     initBranch();
-                }, []), (0, react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsx)(Component, function(target) {
+                }, []), /*#__PURE__*/ (0, react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__.jsx)(Component, function(target) {
                     for(var i = 1; i < arguments.length; i++){
                         var source = null != arguments[i] ? arguments[i] : {}, ownKeys = Object.keys(source);
                         "function" == typeof Object.getOwnPropertySymbols && (ownKeys = ownKeys.concat(Object.getOwnPropertySymbols(source).filter(function(sym) {
@@ -96,8 +100,8 @@
                     return target;
                 }({}, pageProps));
             };
-        },
-        1876: function(module) {
+        /***/ },
+        /***/ 1876: /***/ function(module) {
             !function() {
                 var e = {
                     991: function(e, r) {
@@ -132,7 +136,12 @@
                     },
                     293: function(e, r, t) {
                         "use strict";
-                        var f = t(991), n = t(759), i = "function" == typeof Symbol && "function" == typeof Symbol.for ? Symbol.for("nodejs.util.inspect.custom") : null;
+                        /*!
+                             * The buffer module from node.js, for the browser.
+                             *
+                             * @author   Feross Aboukhadijeh <https://feross.org>
+                             * @license  MIT
+                             */ var f = t(991), n = t(759), i = "function" == typeof Symbol && "function" == typeof Symbol.for ? Symbol.for("nodejs.util.inspect.custom") : null;
                         function createBuffer(e) {
                             if (e > 2147483647) throw RangeError('The value "' + e + '" is invalid for option "size"');
                             var r = new Uint8Array(e);
@@ -267,7 +276,7 @@
                         function bidirectionalIndexOf(e, r, t, f, n) {
                             var e1;
                             if (0 === e.length) return -1;
-                            if ("string" == typeof t ? (f = t, t = 0) : t > 2147483647 ? t = 2147483647 : t < -2147483648 && (t = -2147483648), (e1 = t = +t) != e1 && (t = n ? 0 : e.length - 1), t < 0 && (t = e.length + t), t >= e.length) {
+                            if ("string" == typeof t ? (f = t, t = 0) : t > 2147483647 ? t = 2147483647 : t < -2147483648 && (t = -2147483648), (e1 = t *= 1) != e1 && (t = n ? 0 : e.length - 1), t < 0 && (t = e.length + t), t >= e.length) {
                                 if (n) return -1;
                                 t = e.length - 1;
                             } else if (t < 0) {
@@ -342,10 +351,10 @@
                             if (t + f > e.length || t < 0) throw RangeError("Index out of range");
                         }
                         function writeFloat(e, r, t, f, i) {
-                            return r = +r, t >>>= 0, i || checkIEEE754(e, r, t, 4, 34028234663852886e22, -340282346638528860000000000000000000000), n.write(e, r, t, f, 23, 4), t + 4;
+                            return r *= 1, t >>>= 0, i || checkIEEE754(e, r, t, 4, 34028234663852886e22, -340282346638528860000000000000000000000), n.write(e, r, t, f, 23, 4), t + 4;
                         }
                         function writeDouble(e, r, t, f, i) {
-                            return r = +r, t >>>= 0, i || checkIEEE754(e, r, t, 8, 17976931348623157e292, -179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000), n.write(e, r, t, f, 52, 8), t + 8;
+                            return r *= 1, t >>>= 0, i || checkIEEE754(e, r, t, 8, 17976931348623157e292, -179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000), n.write(e, r, t, f, 52, 8), t + 8;
                         }
                         r.Buffer = Buffer, r.SlowBuffer = function(e) {
                             return +e != e && (e = 0), Buffer.alloc(+e);
@@ -387,7 +396,7 @@
                                 t = e[n], f = r[n];
                                 break;
                             }
-                            return t < f ? -1 : f < t ? 1 : 0;
+                            return t < f ? -1 : +(f < t);
                         }, Buffer.isEncoding = function(e) {
                             switch(String(e).toLowerCase()){
                                 case "hex":
@@ -451,7 +460,7 @@
                                 i = a[h], o = s[h];
                                 break;
                             }
-                            return i < o ? -1 : o < i ? 1 : 0;
+                            return i < o ? -1 : +(o < i);
                         }, Buffer.prototype.includes = function(e, r, t) {
                             return -1 !== this.indexOf(e, r, t);
                         }, Buffer.prototype.indexOf = function(e, r, t) {
@@ -562,7 +571,7 @@
                         }, Buffer.prototype.readDoubleBE = function(e, r) {
                             return e >>>= 0, r || checkOffset(e, 8, this.length), n.read(this, e, !1, 52, 8);
                         }, Buffer.prototype.writeUIntLE = function(e, r, t, f) {
-                            if (e = +e, r >>>= 0, t >>>= 0, !f) {
+                            if (e *= 1, r >>>= 0, t >>>= 0, !f) {
                                 var n = Math.pow(2, 8 * t) - 1;
                                 checkInt(this, e, r, t, n, 0);
                             }
@@ -570,7 +579,7 @@
                             for(this[r] = 255 & e; ++o < t && (i *= 256);)this[r + o] = e / i & 255;
                             return r + t;
                         }, Buffer.prototype.writeUIntBE = function(e, r, t, f) {
-                            if (e = +e, r >>>= 0, t >>>= 0, !f) {
+                            if (e *= 1, r >>>= 0, t >>>= 0, !f) {
                                 var n = Math.pow(2, 8 * t) - 1;
                                 checkInt(this, e, r, t, n, 0);
                             }
@@ -578,17 +587,17 @@
                             for(this[r + i] = 255 & e; --i >= 0 && (o *= 256);)this[r + i] = e / o & 255;
                             return r + t;
                         }, Buffer.prototype.writeUInt8 = function(e, r, t) {
-                            return e = +e, r >>>= 0, t || checkInt(this, e, r, 1, 255, 0), this[r] = 255 & e, r + 1;
+                            return e *= 1, r >>>= 0, t || checkInt(this, e, r, 1, 255, 0), this[r] = 255 & e, r + 1;
                         }, Buffer.prototype.writeUInt16LE = function(e, r, t) {
-                            return e = +e, r >>>= 0, t || checkInt(this, e, r, 2, 65535, 0), this[r] = 255 & e, this[r + 1] = e >>> 8, r + 2;
+                            return e *= 1, r >>>= 0, t || checkInt(this, e, r, 2, 65535, 0), this[r] = 255 & e, this[r + 1] = e >>> 8, r + 2;
                         }, Buffer.prototype.writeUInt16BE = function(e, r, t) {
-                            return e = +e, r >>>= 0, t || checkInt(this, e, r, 2, 65535, 0), this[r] = e >>> 8, this[r + 1] = 255 & e, r + 2;
+                            return e *= 1, r >>>= 0, t || checkInt(this, e, r, 2, 65535, 0), this[r] = e >>> 8, this[r + 1] = 255 & e, r + 2;
                         }, Buffer.prototype.writeUInt32LE = function(e, r, t) {
-                            return e = +e, r >>>= 0, t || checkInt(this, e, r, 4, 4294967295, 0), this[r + 3] = e >>> 24, this[r + 2] = e >>> 16, this[r + 1] = e >>> 8, this[r] = 255 & e, r + 4;
+                            return e *= 1, r >>>= 0, t || checkInt(this, e, r, 4, 4294967295, 0), this[r + 3] = e >>> 24, this[r + 2] = e >>> 16, this[r + 1] = e >>> 8, this[r] = 255 & e, r + 4;
                         }, Buffer.prototype.writeUInt32BE = function(e, r, t) {
-                            return e = +e, r >>>= 0, t || checkInt(this, e, r, 4, 4294967295, 0), this[r] = e >>> 24, this[r + 1] = e >>> 16, this[r + 2] = e >>> 8, this[r + 3] = 255 & e, r + 4;
+                            return e *= 1, r >>>= 0, t || checkInt(this, e, r, 4, 4294967295, 0), this[r] = e >>> 24, this[r + 1] = e >>> 16, this[r + 2] = e >>> 8, this[r + 3] = 255 & e, r + 4;
                         }, Buffer.prototype.writeIntLE = function(e, r, t, f) {
-                            if (e = +e, r >>>= 0, !f) {
+                            if (e *= 1, r >>>= 0, !f) {
                                 var n = Math.pow(2, 8 * t - 1);
                                 checkInt(this, e, r, t, n - 1, -n);
                             }
@@ -596,7 +605,7 @@
                             for(this[r] = 255 & e; ++i < t && (o *= 256);)e < 0 && 0 === u && 0 !== this[r + i - 1] && (u = 1), this[r + i] = (e / o >> 0) - u & 255;
                             return r + t;
                         }, Buffer.prototype.writeIntBE = function(e, r, t, f) {
-                            if (e = +e, r >>>= 0, !f) {
+                            if (e *= 1, r >>>= 0, !f) {
                                 var n = Math.pow(2, 8 * t - 1);
                                 checkInt(this, e, r, t, n - 1, -n);
                             }
@@ -604,15 +613,15 @@
                             for(this[r + i] = 255 & e; --i >= 0 && (o *= 256);)e < 0 && 0 === u && 0 !== this[r + i + 1] && (u = 1), this[r + i] = (e / o >> 0) - u & 255;
                             return r + t;
                         }, Buffer.prototype.writeInt8 = function(e, r, t) {
-                            return e = +e, r >>>= 0, t || checkInt(this, e, r, 1, 127, -128), e < 0 && (e = 255 + e + 1), this[r] = 255 & e, r + 1;
+                            return e *= 1, r >>>= 0, t || checkInt(this, e, r, 1, 127, -128), e < 0 && (e = 255 + e + 1), this[r] = 255 & e, r + 1;
                         }, Buffer.prototype.writeInt16LE = function(e, r, t) {
-                            return e = +e, r >>>= 0, t || checkInt(this, e, r, 2, 32767, -32768), this[r] = 255 & e, this[r + 1] = e >>> 8, r + 2;
+                            return e *= 1, r >>>= 0, t || checkInt(this, e, r, 2, 32767, -32768), this[r] = 255 & e, this[r + 1] = e >>> 8, r + 2;
                         }, Buffer.prototype.writeInt16BE = function(e, r, t) {
-                            return e = +e, r >>>= 0, t || checkInt(this, e, r, 2, 32767, -32768), this[r] = e >>> 8, this[r + 1] = 255 & e, r + 2;
+                            return e *= 1, r >>>= 0, t || checkInt(this, e, r, 2, 32767, -32768), this[r] = e >>> 8, this[r + 1] = 255 & e, r + 2;
                         }, Buffer.prototype.writeInt32LE = function(e, r, t) {
-                            return e = +e, r >>>= 0, t || checkInt(this, e, r, 4, 2147483647, -2147483648), this[r] = 255 & e, this[r + 1] = e >>> 8, this[r + 2] = e >>> 16, this[r + 3] = e >>> 24, r + 4;
+                            return e *= 1, r >>>= 0, t || checkInt(this, e, r, 4, 2147483647, -2147483648), this[r] = 255 & e, this[r + 1] = e >>> 8, this[r + 2] = e >>> 16, this[r + 3] = e >>> 24, r + 4;
                         }, Buffer.prototype.writeInt32BE = function(e, r, t) {
-                            return e = +e, r >>>= 0, t || checkInt(this, e, r, 4, 2147483647, -2147483648), e < 0 && (e = 4294967295 + e + 1), this[r] = e >>> 24, this[r + 1] = e >>> 16, this[r + 2] = e >>> 8, this[r + 3] = 255 & e, r + 4;
+                            return e *= 1, r >>>= 0, t || checkInt(this, e, r, 4, 2147483647, -2147483648), e < 0 && (e = 4294967295 + e + 1), this[r] = e >>> 24, this[r + 1] = e >>> 16, this[r + 2] = e >>> 8, this[r + 3] = 255 & e, r + 4;
                         }, Buffer.prototype.writeFloatLE = function(e, r, t) {
                             return writeFloat(this, e, r, !0, t);
                         }, Buffer.prototype.writeFloatBE = function(e, r, t) {
@@ -717,13 +726,13 @@
                             for(o = i & (1 << -h) - 1, i >>= -h, h += f; h > 0; o = 256 * o + e[r + c], c += l, h -= 8);
                             if (0 === i) i = 1 - s;
                             else {
-                                if (i === a) return o ? NaN : (p ? -1 : 1) * (1 / 0);
+                                if (i === a) return o ? NaN : 1 / 0 * (p ? -1 : 1);
                                 o += Math.pow(2, f), i -= s;
                             }
                             return (p ? -1 : 1) * o * Math.pow(2, i - f);
                         }, r.write = function(e, r, t, f, n, i) {
-                            var o, u, a, s = 8 * i - n - 1, h = (1 << s) - 1, c = h >> 1, l = 23 === n ? 0.00000005960464477539062 : 0, p = f ? 0 : i - 1, y = f ? 1 : -1, g = r < 0 || 0 === r && 1 / r < 0 ? 1 : 0;
-                            for(isNaN(r = Math.abs(r)) || r === 1 / 0 ? (u = isNaN(r) ? 1 : 0, o = h) : (o = Math.floor(Math.log(r) / Math.LN2), r * (a = Math.pow(2, -o)) < 1 && (o--, a *= 2), o + c >= 1 ? r += l / a : r += l * Math.pow(2, 1 - c), r * a >= 2 && (o++, a /= 2), o + c >= h ? (u = 0, o = h) : o + c >= 1 ? (u = (r * a - 1) * Math.pow(2, n), o += c) : (u = r * Math.pow(2, c - 1) * Math.pow(2, n), o = 0)); n >= 8; e[t + p] = 255 & u, p += y, u /= 256, n -= 8);
+                            var o, u, a, s = 8 * i - n - 1, h = (1 << s) - 1, c = h >> 1, l = 0.00000005960464477539062 * (23 === n), p = f ? 0 : i - 1, y = f ? 1 : -1, g = +(r < 0 || 0 === r && 1 / r < 0);
+                            for(isNaN(r = Math.abs(r)) || r === 1 / 0 ? (u = +!!isNaN(r), o = h) : (o = Math.floor(Math.log(r) / Math.LN2), r * (a = Math.pow(2, -o)) < 1 && (o--, a *= 2), o + c >= 1 ? r += l / a : r += l * Math.pow(2, 1 - c), r * a >= 2 && (o++, a /= 2), o + c >= h ? (u = 0, o = h) : o + c >= 1 ? (u = (r * a - 1) * Math.pow(2, n), o += c) : (u = r * Math.pow(2, c - 1) * Math.pow(2, n), o = 0)); n >= 8; e[t + p] = 255 & u, p += y, u /= 256, n -= 8);
                             for(o = o << n | u, s += n; s > 0; e[t + p] = 255 & o, p += y, o /= 256, s -= 8);
                             e[t + p - y] |= 128 * g;
                         };
@@ -746,9 +755,11 @@
                 var t = __nccwpck_require__(293);
                 module.exports = t;
             }();
-        },
-        6774: function() {},
-        7663: function(module) {
+        /***/ },
+        /***/ 6774: /***/ function() {
+        // extracted by mini-css-extract-plugin
+        /***/ },
+        /***/ 7663: /***/ function(module) {
             !function() {
                 var e = {
                     162: function(e) {
@@ -851,9 +862,9 @@
                 var r = __nccwpck_require__(162);
                 module.exports = r;
             }();
-        },
-        9720: function(module, __unused_webpack_exports, __webpack_require__) {
-            var Buffer = __webpack_require__(1876).Buffer, process = __webpack_require__(3454);
+        /***/ },
+        /***/ 9720: /***/ function(module, __unused_webpack_exports, __webpack_require__) {
+            /* provided dependency */ var Buffer = __webpack_require__(1876).Buffer, process = __webpack_require__(3454);
             !function() {
                 var r = {
                     901: function(r) {
@@ -2638,17 +2649,18 @@
                 var e = __nccwpck_require__(650);
                 module.exports = e;
             }();
-        }
+        /***/ }
     },
-    function(__webpack_require__) {
-        var __webpack_exec__ = function(moduleId) {
+    /******/ function(__webpack_require__) {
+        // webpackRuntimeModules
+        /******/ var __webpack_exec__ = function(moduleId) {
             return __webpack_require__(__webpack_require__.s = moduleId);
         };
-        __webpack_require__.O(0, [
+        /******/ __webpack_require__.O(0, [
             774,
             179
         ], function() {
             return __webpack_exec__(1780), __webpack_exec__(880);
-        }), _N_E = __webpack_require__.O();
-    }
+        }), /******/ _N_E = __webpack_require__.O();
+    /******/ }
 ]);

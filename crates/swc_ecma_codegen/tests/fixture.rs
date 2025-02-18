@@ -5,7 +5,7 @@ use swc_ecma_codegen::{
     text_writer::{JsWriter, WriteJs},
     Emitter,
 };
-use swc_ecma_parser::{parse_file_as_module, Syntax, TsConfig};
+use swc_ecma_parser::{parse_file_as_module, Syntax, TsSyntax};
 use testing::{run_test2, NormalizedOutput};
 
 fn run(input: &Path, minify: bool) {
@@ -27,18 +27,18 @@ fn run(input: &Path, minify: bool) {
 
         let m = parse_file_as_module(
             &fm,
-            Syntax::Typescript(TsConfig {
+            Syntax::Typescript(TsSyntax {
                 decorators: true,
                 tsx: true,
                 ..Default::default()
             }),
             EsVersion::latest(),
             None,
-            &mut vec![],
+            &mut Vec::new(),
         )
         .expect("failed to parse input as a module");
 
-        let mut buf = vec![];
+        let mut buf = Vec::new();
 
         {
             let mut wr =
@@ -49,10 +49,7 @@ fn run(input: &Path, minify: bool) {
             }
 
             let mut emitter = Emitter {
-                cfg: swc_ecma_codegen::Config {
-                    minify,
-                    ..Default::default()
-                },
+                cfg: swc_ecma_codegen::Config::default().with_minify(minify),
                 cm,
                 comments: None,
                 wr,
@@ -77,6 +74,7 @@ fn ts(input: PathBuf) {
 }
 
 #[testing::fixture("tests/fixture/**/input.js")]
+#[testing::fixture("tests/fixture/**/input.jsx")]
 fn js(input: PathBuf) {
     run(&input, false);
     run(&input, true);

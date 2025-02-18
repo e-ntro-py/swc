@@ -1,31 +1,30 @@
 //// [file.tsx]
 import { _ as _class_call_check } from "@swc/helpers/_/_class_call_check";
-var M;
 (function(M) {
     var Foo1 = function Foo1() {
         "use strict";
         _class_call_check(this, Foo1);
     };
     M.Foo = Foo1;
-    var S1;
     (function(S1) {
         var Bar1 = function Bar1() {
             "use strict";
             _class_call_check(this, Bar1);
         };
         S1.Bar = Bar1;
-    })(S1 = M.S || (M.S = {}));
+    // Emit Foo
+    // Foo, <Foo />;
+    })(M.S || (M.S = {}));
 })(M || (M = {}));
 (function(M) {
     // Emit M.Foo
     Foo, /*#__PURE__*/ React.createElement(Foo, null);
-    var S1;
     (function(S1) {
         // Emit M.Foo
         Foo, /*#__PURE__*/ React.createElement(Foo, null);
         // Emit S.Bar
         Bar, /*#__PURE__*/ React.createElement(Bar, null);
-    })(S1 = M.S || (M.S = {}));
+    })(M.S || (M.S = {}));
 })(M || (M = {}));
 (function(M) {
     // Emit M.S.Bar
@@ -36,3 +35,4 @@ var M;
     // Emit M_1.Foo
     Foo, /*#__PURE__*/ React.createElement(Foo, null);
 })(M || (M = {}));
+var M;

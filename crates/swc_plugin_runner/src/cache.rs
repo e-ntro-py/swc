@@ -9,18 +9,17 @@ use std::{
 use anyhow::{Context, Error};
 use enumset::EnumSet;
 use parking_lot::Mutex;
-use swc_common::{
-    collections::AHashMap,
-    sync::{Lazy, OnceCell},
-};
+use rustc_hash::FxHashMap;
+use swc_common::sync::{Lazy, OnceCell};
 #[cfg(not(target_arch = "wasm32"))]
-use wasmer::{BaseTunables, CpuFeature, Engine, Target, Triple};
+use wasmer::{sys::BaseTunables, CpuFeature, Engine, Target, Triple};
 use wasmer::{Module, Store};
 #[cfg(all(not(target_arch = "wasm32"), feature = "filesystem_cache"))]
 use wasmer_cache::{Cache as WasmerCache, FileSystemCache, Hash};
 
-use crate::plugin_module_bytes::{
-    CompiledPluginModuleBytes, PluginModuleBytes, RawPluginModuleBytes,
+use crate::{
+    plugin_module_bytes::{CompiledPluginModuleBytes, PluginModuleBytes, RawPluginModuleBytes},
+    wasix_runtime::new_store,
 };
 
 /// Version for bytecode cache stored in local filesystem.
@@ -31,7 +30,7 @@ use crate::plugin_module_bytes::{
 /// however it is not gauranteed to be compatible across wasmer's
 /// internal changes.
 /// https://github.com/wasmerio/wasmer/issues/2781
-const MODULE_SERIALIZATION_VERSION: &str = "v6";
+const MODULE_SERIALIZATION_VERSION: &str = "v7";
 
 #[derive(Default)]
 pub struct PluginModuleCacheInner {
@@ -43,13 +42,13 @@ pub struct PluginModuleCacheInner {
     // FileSystemCache. This works since SWC does not revalidates plugin in single process
     // lifecycle.
     #[cfg(all(not(target_arch = "wasm32"), feature = "filesystem_cache"))]
-    fs_cache_hash_store: AHashMap<String, Hash>,
+    fs_cache_hash_store: FxHashMap<String, Hash>,
     // Generic in-memory cache to the raw bytes, either read by fs or supplied by bindgen.
-    memory_cache_store: AHashMap<String, Vec<u8>>,
+    memory_cache_store: FxHashMap<String, Vec<u8>>,
     // A naive hashmap to the compiled plugin modules.
     // Current it doesn't have any invalidation or expiration logics like lru,
     // having a lot of plugins may create some memory pressure.
-    compiled_module_bytes: AHashMap<String, (wasmer::Store, wasmer::Module)>,
+    compiled_module_bytes: FxHashMap<String, (wasmer::Store, wasmer::Module)>,
 }
 
 impl PluginModuleCacheInner {
@@ -114,10 +113,18 @@ impl PluginModuleCacheInner {
             // If FilesystemCache is available, store serialized bytes into fs.
             if let Some(fs_cache_store) = &mut self.fs_cache_store {
                 let module_bytes_hash = Hash::generate(&raw_module_bytes);
-                let store = crate::plugin_module_bytes::new_store();
-                let module = Module::new(&store, raw_module_bytes.clone())
-                    .context("Cannot compile plugin binary")?;
-                fs_cache_store.store(module_bytes_hash, &module)?;
+                let store = new_store();
+
+                let module =
+                    if let Ok(module) = unsafe { fs_cache_store.load(&store, module_bytes_hash) } {
+                        tracing::debug!("Build WASM from cache: {key}");
+                        module
+                    } else {
+                        let module = Module::new(&store, raw_module_bytes.clone())
+                            .context("Cannot compile plugin binary")?;
+                        fs_cache_store.store(module_bytes_hash, &module)?;
+                        module
+                    };
 
                 // Store hash to load from fs_cache_store later.
                 self.fs_cache_hash_store
@@ -154,7 +161,7 @@ impl PluginModuleCacheInner {
         #[cfg(all(not(target_arch = "wasm32"), feature = "filesystem_cache"))]
         if let Some(fs_cache_store) = &self.fs_cache_store {
             let hash = self.fs_cache_hash_store.get(key)?;
-            let store = crate::plugin_module_bytes::new_store();
+            let store = new_store();
             let module = unsafe { fs_cache_store.load(&store, *hash) };
             if let Ok(module) = module {
                 return Some(Box::new(CompiledPluginModuleBytes::new(

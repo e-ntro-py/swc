@@ -1,5 +1,2 @@
 //// [parserInterfaceKeywordInEnum.ts]
-var Bar;
-!function(Bar) {
-    Bar[Bar.interface = 0] = "interface";
-}(Bar || (Bar = {}));
+var Bar, Bar1 = ((Bar = Bar1 || {})[Bar.interface = 0] = "interface", Bar);

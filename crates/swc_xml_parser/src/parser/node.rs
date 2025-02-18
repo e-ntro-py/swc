@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::{
     cell::{Cell, RefCell},
     fmt, mem,
@@ -59,7 +61,7 @@ impl Node {
     pub fn new(data: Data, span: Span) -> Rc<Self> {
         Rc::new(Node {
             parent: Cell::new(None),
-            children: RefCell::new(vec![]),
+            children: RefCell::new(Vec::new()),
             start_span: RefCell::new(span),
             end_span: RefCell::new(None),
             data,
@@ -74,7 +76,7 @@ impl Drop for Node {
         while let Some(node) = nodes.pop() {
             let children = mem::take(&mut *node.children.borrow_mut());
 
-            nodes.extend(children.into_iter());
+            nodes.extend(children);
         }
     }
 }

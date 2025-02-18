@@ -1,10 +1,6 @@
 //// [typeArgumentInferenceWithObjectLiteral.ts]
-var E1, E2;
-!function(E1) {
-    E1[E1.X = 0] = "X";
-}(E1 || (E1 = {})), function(E2) {
-    E2[E2.X = 0] = "X";
-}(E2 || (E2 = {})), f1({
+var E2, E1, E11 = ((E1 = E11 || {})[E1.X = 0] = "X", E1), E21 = ((E2 = E21 || {})[E2.X = 0] = "X", E2);
+f1({
     w: function(x) {
         return x;
     },
@@ -18,25 +14,25 @@ var E1, E2;
     r: function() {
         return 0;
     }
-}, E1.X), f1({
+}, 0), f1({
     w: function(x) {
         return x;
     },
     r: function() {
-        return E1.X;
+        return 0;
     }
 }, 0), f1({
     w: function(x) {
         return x;
     },
     r: function() {
-        return E1.X;
+        return 0;
     }
-}, E1.X), f1({
+}, 0), f1({
     w: function(x) {
         return x;
     },
     r: function() {
-        return E1.X;
+        return 0;
     }
-}, E2.X);
+}, 0);

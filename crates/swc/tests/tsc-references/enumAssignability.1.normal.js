@@ -1,31 +1,23 @@
 //// [enumAssignability.ts]
 // enums assignable to number, any, Object, errors unless otherwise noted
 import { _ as _class_call_check } from "@swc/helpers/_/_class_call_check";
-var E;
-(function(E) {
+var E = /*#__PURE__*/ function(E) {
     E[E["A"] = 0] = "A";
-})(E || (E = {}));
-var F;
-(function(F) {
+    return E;
+}(E || {});
+var F = /*#__PURE__*/ function(F) {
     F[F["B"] = 0] = "B";
-})(F || (F = {}));
-var e = E.A;
-var f = F.B;
+    return F;
+}(F || {});
+var e = 0;
+var f = 0;
 e = f;
 f = e;
 e = 1; // ok
 f = 1; // ok
 var x = e; // ok
 x = f; // ok
-var Others;
 (function(Others) {
-    var foo = function foo(x, y, z) {
-        x = e;
-        y = e;
-        z = e;
-        var a = e;
-        var b = e;
-    };
     var a = e; // ok
     var C = function C() {
         "use strict";
@@ -51,4 +43,12 @@ var Others;
     var o = e;
     var p = e;
     var q = e;
+    function foo(x, y, z) {
+        x = e;
+        y = e;
+        z = e;
+        var a = e;
+        var b = e;
+    }
 })(Others || (Others = {}));
+var Others;

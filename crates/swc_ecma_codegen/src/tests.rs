@@ -1,16 +1,13 @@
-use std::{
-    fmt::Debug,
-    io::Write,
-    sync::{Arc, RwLock},
-};
+use std::path::PathBuf;
 
 use swc_common::{comments::SingleThreadedComments, FileName, SourceMap};
 use swc_ecma_parser;
+use swc_ecma_testing::{exec_node_js, JsExecOptions};
 use testing::DebugUsingDisplay;
 
-use self::swc_ecma_parser::{EsConfig, Parser, StringInput, Syntax};
+use self::swc_ecma_parser::{EsSyntax, Parser, StringInput, Syntax};
 use super::*;
-use crate::{config::Config, text_writer::omit_trailing_semi};
+use crate::text_writer::omit_trailing_semi;
 
 struct Builder {
     cfg: Config,
@@ -19,7 +16,7 @@ struct Builder {
 }
 
 impl Builder {
-    pub fn with<'a, F, Ret>(self, _: &str, s: &'a mut Vec<u8>, op: F) -> Ret
+    pub fn with<'a, F, Ret>(self, _: &str, s: &'a mut std::vec::Vec<u8>, op: F) -> Ret
     where
         F: for<'aa> FnOnce(&mut Emitter<'aa, Box<(dyn WriteJs + 'aa)>, SourceMap>) -> Ret,
         Ret: 'static,
@@ -47,7 +44,7 @@ impl Builder {
     where
         F: for<'aa> FnOnce(&mut Emitter<'aa, Box<(dyn WriteJs + 'aa)>, SourceMap>),
     {
-        let mut buf = vec![];
+        let mut buf = std::vec::Vec::new();
 
         self.with(src, &mut buf, op);
 
@@ -57,7 +54,7 @@ impl Builder {
 
 fn parse_then_emit(from: &str, cfg: Config, syntax: Syntax) -> String {
     ::testing::run_test(false, |cm, handler| {
-        let src = cm.new_source_file(FileName::Real("custom.js".into()), from.to_string());
+        let src = cm.new_source_file(FileName::Real("custom.js".into()).into(), from.to_string());
         println!(
             "--------------------\nSource: \n{}\nPos: {:?} ~ {:?}\n",
             from, src.start_pos, src.end_pos
@@ -99,6 +96,7 @@ pub(crate) fn assert_min(from: &str, to: &str) {
     assert_eq!(DebugUsingDisplay(out.trim()), DebugUsingDisplay(to),);
 }
 
+#[track_caller]
 pub(crate) fn assert_min_target(from: &str, to: &str, target: EsVersion) {
     let out = parse_then_emit(
         from,
@@ -115,6 +113,7 @@ pub(crate) fn assert_min_target(from: &str, to: &str, target: EsVersion) {
 }
 
 /// Clone of the regular `assert_min` function but with TypeScript syntax.
+#[track_caller]
 pub(crate) fn assert_min_typescript(from: &str, to: &str) {
     let out = parse_then_emit(
         from,
@@ -235,14 +234,14 @@ a;",
 #[test]
 fn no_octal_escape() {
     test_from_to(
-        r#"'\x00a';
+        r"'\x00a';
 '\x000';
 '\x001';
-'\x009'"#,
-        r#"'\x00a';
+'\x009'",
+        r"'\x00a';
 '\x000';
 '\x001';
-'\x009';"#,
+'\x009';",
     );
 }
 
@@ -306,7 +305,7 @@ fn export_namespace_from() {
         "export * as Foo from 'foo';",
         "export * as Foo from 'foo';",
         Default::default(),
-        Syntax::Es(EsConfig::default()),
+        Syntax::Es(EsSyntax::default()),
     );
 }
 
@@ -319,7 +318,7 @@ fn export_namespace_from_min() {
             minify: true,
             ..Default::default()
         },
-        Syntax::Es(EsConfig::default()),
+        Syntax::Es(EsSyntax::default()),
     );
 }
 
@@ -329,9 +328,9 @@ fn named_and_namespace_export_from() {
         "export * as Foo, { bar } from 'foo';",
         "export * as Foo, { bar } from 'foo';",
         Default::default(),
-        Syntax::Es(EsConfig {
+        Syntax::Es(EsSyntax {
             export_default_from: true,
-            ..EsConfig::default()
+            ..EsSyntax::default()
         }),
     );
 }
@@ -345,9 +344,9 @@ fn named_and_namespace_export_from_min() {
             minify: true,
             ..Default::default()
         },
-        Syntax::Es(EsConfig {
+        Syntax::Es(EsSyntax {
             export_default_from: true,
-            ..EsConfig::default()
+            ..EsSyntax::default()
         }),
     );
 }
@@ -355,11 +354,11 @@ fn named_and_namespace_export_from_min() {
 #[test]
 fn issue_450() {
     test_from_to(
-        r#"console.log(`
+        r"console.log(`
 \`\`\`html
 <h1>It works!</h1>
 \`\`\`
-`);"#,
+`);",
         "console.log(`\n\\`\\`\\`html\n<h1>It works!</h1>\n\\`\\`\\`\n`);",
     );
 }
@@ -438,24 +437,24 @@ fn tpl_escape_2() {
 #[test]
 fn tpl_escape_3() {
     test_from_to(
-        r#"`${resolvedDevice.toLowerCase()}\\`"#,
-        r#"`${resolvedDevice.toLowerCase()}\\`;"#,
+        r"`${resolvedDevice.toLowerCase()}\\`",
+        r"`${resolvedDevice.toLowerCase()}\\`;",
     );
 }
 
 #[test]
 fn tpl_escape_4() {
     test_from_to(
-        r#"`\\\\${firstPart}\\${path.slice(last)}`"#,
-        r#"`\\\\${firstPart}\\${path.slice(last)}`;"#,
+        r"`\\\\${firstPart}\\${path.slice(last)}`",
+        r"`\\\\${firstPart}\\${path.slice(last)}`;",
     );
 }
 
 #[test]
 fn tpl_escape_5() {
     test_from_to(
-        r#"const data = text.encode(`${arg}\0`);"#,
-        r#"const data = text.encode(`${arg}\0`);"#,
+        r"const data = text.encode(`${arg}\0`);",
+        r"const data = text.encode(`${arg}\0`);",
     );
 }
 
@@ -485,12 +484,12 @@ fn tpl_escape_6() {
 
 #[test]
 fn issue_915_1() {
-    test_identical(r#"relResolveCacheIdentifier = `${parent.path}\x00${request}`;"#);
+    test_identical(r"relResolveCacheIdentifier = `${parent.path}\x00${request}`;");
 }
 
 #[test]
 fn issue_915_2() {
-    test_identical(r#"relResolveCacheIdentifier = `${parent.path}\x00${request}`;"#);
+    test_identical(r"relResolveCacheIdentifier = `${parent.path}\x00${request}`;");
 }
 
 #[test]
@@ -500,7 +499,7 @@ fn issue_915_3() {
 
 #[test]
 fn issue_915_4() {
-    test_identical(r#"`\\r\\n--${this.boundary}`;"#);
+    test_identical(r"`\\r\\n--${this.boundary}`;");
 }
 
 #[test]
@@ -509,7 +508,7 @@ fn jsx_1() {
         "<Foo title=\"name\" desc=\"<empty>\" bool it>foo</Foo>;",
         "<Foo title=\"name\" desc=\"<empty>\" bool it>foo</Foo>;",
         Default::default(),
-        Syntax::Es(EsConfig {
+        Syntax::Es(EsSyntax {
             jsx: true,
             ..Default::default()
         }),
@@ -585,10 +584,18 @@ CONTENT\r
 
 #[test]
 fn test_get_quoted_utf16() {
+    fn combine((quote_char, s): (AsciiChar, CowStr<'_>)) -> String {
+        let mut new = String::with_capacity(s.len() + 2);
+        new.push(quote_char.as_char());
+        new.push_str(s.as_ref());
+        new.push(quote_char.as_char());
+        new
+    }
+
     #[track_caller]
     fn es2020(src: &str, expected: &str) {
         assert_eq!(
-            super::get_quoted_utf16(src, true, EsVersion::Es2020),
+            combine(super::get_quoted_utf16(src, true, EsVersion::Es2020)),
             expected
         )
     }
@@ -596,20 +603,23 @@ fn test_get_quoted_utf16() {
     #[track_caller]
     fn es2020_nonascii(src: &str, expected: &str) {
         assert_eq!(
-            super::get_quoted_utf16(src, true, EsVersion::Es2020),
+            combine(super::get_quoted_utf16(src, true, EsVersion::Es2020)),
             expected
         )
     }
 
     #[track_caller]
     fn es5(src: &str, expected: &str) {
-        assert_eq!(super::get_quoted_utf16(src, true, EsVersion::Es5), expected)
+        assert_eq!(
+            combine(super::get_quoted_utf16(src, true, EsVersion::Es5)),
+            expected
+        )
     }
 
     es2020("abcde", "\"abcde\"");
     es2020(
         "\x00\r\n\u{85}\u{2028}\u{2029};",
-        "\"\\x00\\r\\n\\x85\\u2028\\u2029;\"",
+        "\"\\0\\r\\n\\x85\\u2028\\u2029;\"",
     );
 
     es2020("\n", "\"\\n\"");
@@ -617,7 +627,7 @@ fn test_get_quoted_utf16() {
 
     es2020("'string'", "\"'string'\"");
 
-    es2020("\u{0}", "\"\\x00\"");
+    es2020("\u{0}", "\"\\0\"");
     es2020("\u{1}", "\"\\x01\"");
 
     es2020("\u{1000}", "\"\\u1000\"");
@@ -653,7 +663,7 @@ fn issue_1452_1() {
 fn issue_1619_1() {
     assert_min_target(
         "\"\\x00\" + \"\\x31\"",
-        "\"\\x00\"+\"1\"",
+        "\"\\0\"+\"1\"",
         EsVersion::latest(),
     );
 }
@@ -662,7 +672,7 @@ fn issue_1619_1() {
 fn issue_1619_2() {
     assert_min_target(
         "\"\\x00\" + \"\\x31\"",
-        "\"\\x00\"+\"1\"",
+        "\"\\0\"+\"1\"",
         EsVersion::latest(),
     );
 }
@@ -670,8 +680,8 @@ fn issue_1619_2() {
 #[test]
 fn issue_1619_3() {
     assert_eq!(
-        get_quoted_utf16("\x00\x31", true, EsVersion::Es3),
-        "\"\\x001\""
+        &*get_quoted_utf16("\x00\x31", true, EsVersion::Es3).1,
+        "\\x001"
     );
 }
 
@@ -702,18 +712,6 @@ fn test_escape_with_source_str() {
     );
 }
 
-#[derive(Debug, Clone)]
-struct Buf(Arc<RwLock<Vec<u8>>>);
-impl Write for Buf {
-    fn write(&mut self, data: &[u8]) -> io::Result<usize> {
-        self.0.write().unwrap().write(data)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.0.write().unwrap().flush()
-    }
-}
-
 #[test]
 fn issue_2213() {
     assert_min("a - -b * c", "a- -b*c")
@@ -725,8 +723,10 @@ fn issue_3617() {
     let from = r"// a string of all valid unicode whitespaces
     module.exports = '\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002' +
       '\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF' + '\u{a0}';";
-    let expected = r#"// a string of all valid unicode whitespaces
-module.exports = "	\n\v\f\r \xa0\u1680\u2000\u2001\u2002" + "\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF" + "\xa0";"#;
+    let expected = "// a string of all valid unicode whitespaces\nmodule.exports = \
+                    '\\u0009\\u000A\\u000B\\u000C\\u000D\\u0020\\u00A0\\u1680\\u2000\\u2001\\\
+                    u2002' + '\\u2003\\u2004\\u2005\\u2006\\u2007\\u2008\\u2009\\u200A\\u202F\\\
+                    u205F\\u3000\\u2028\\u2029\\uFEFF' + '\\u{a0}';\n";
 
     let out = parse_then_emit(
         from,
@@ -753,8 +753,8 @@ fn issue_3617_1() {
     let from = r"// a string of all valid unicode whitespaces
     module.exports = '\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002' +
       '\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF' + '\u{a0}';";
-    let expected = r#"// a string of all valid unicode whitespaces
-module.exports = '\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002' + '\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF' + '\u{a0}';"#;
+    let expected = r"// a string of all valid unicode whitespaces
+module.exports = '\u0009\u000A\u000B\u000C\u000D\u0020\u00A0\u1680\u2000\u2001\u2002' + '\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028\u2029\uFEFF' + '\u{a0}';";
 
     let out = parse_then_emit(
         from,
@@ -872,20 +872,152 @@ fn ascii_only_tpl_lit() {
 #[test]
 fn ascii_only_issue_7240() {
     test_all(
-        r"
+        r#"
         export default {
-            \u3131: '\u11B0',
+            "\u3131": '\u11B0',
         }
-        ",
-        r"
+        "#,
+        r#"
 export default {
-    \u3131: '\u11B0'
+    "\u3131": '\u11B0'
 };
-        ",
-        r##"export default{\u3131:"\u11B0"}"##,
+        "#,
+        r#"export default{"\u3131":"\u11B0"}"#,
         Config {
             ascii_only: true,
             ..Default::default()
         },
     );
+}
+
+#[test]
+fn emit_type_import_statement_named() {
+    let from = r#"
+      import type { X } from "y";
+    "#;
+    let to = r#"
+      import type { X } from "y";
+    "#;
+
+    let out = parse_then_emit(
+        from,
+        Default::default(),
+        Syntax::Typescript(Default::default()),
+    );
+    assert_eq!(DebugUsingDisplay(out.trim()), DebugUsingDisplay(to.trim()),);
+}
+
+#[test]
+fn emit_type_import_statement_default() {
+    let from = r#"
+      import type X from "y";
+    "#;
+    let to = r#"
+      import type X from "y";
+    "#;
+
+    let out = parse_then_emit(
+        from,
+        Default::default(),
+        Syntax::Typescript(Default::default()),
+    );
+    assert_eq!(DebugUsingDisplay(out.trim()), DebugUsingDisplay(to.trim()),);
+}
+
+#[test]
+fn emit_type_import_specifier() {
+    let from = r#"
+      import { type X } from "y";
+    "#;
+    let to = r#"
+      import { type X } from "y";
+    "#;
+
+    let out = parse_then_emit(
+        from,
+        Default::default(),
+        Syntax::Typescript(Default::default()),
+    );
+    assert_eq!(DebugUsingDisplay(out.trim()), DebugUsingDisplay(to.trim()),);
+}
+
+#[test]
+fn issue_8491_1() {
+    test_all(
+        "console.log({aób: 'ó'})",
+        r#"console.log({
+    "a\xf3b": "\xf3"
+});"#,
+        r#"console.log({"a\xf3b":"\xf3"})"#,
+        Config {
+            ascii_only: true,
+            target: EsVersion::Es5,
+            ..Default::default()
+        },
+    );
+}
+
+#[test]
+fn issue_8491_2() {
+    test_all(
+        "console.log({aób: 'ó'})",
+        r#"console.log({
+    "a\xf3b": "\xf3"
+});"#,
+        r#"console.log({"a\xf3b":"\xf3"})"#,
+        Config {
+            ascii_only: true,
+            target: EsVersion::Es2015,
+            ..Default::default()
+        },
+    );
+}
+
+#[test]
+fn issue_9630() {
+    test_from_to_custom_config(
+        "console.log(1 / /* @__PURE__ */ something())",
+        "console.log(1/ /* @__PURE__ */something())",
+        Config {
+            minify: true,
+            ..Default::default()
+        },
+        Default::default(),
+    );
+}
+
+#[testing::fixture("tests/str-lits/**/*.txt")]
+fn test_str_lit(input: PathBuf) {
+    test_str_lit_inner(input)
+}
+
+/// Print text back using `console.log`
+fn run_node(code: &str) -> String {
+    exec_node_js(
+        code,
+        JsExecOptions {
+            cache: true,
+            module: false,
+            args: Default::default(),
+        },
+    )
+    .expect("failed to execute node.js")
+}
+
+fn test_str_lit_inner(input: PathBuf) {
+    let raw_str = std::fs::read_to_string(&*input).unwrap();
+    let input_code = format!("console.log('{raw_str}')");
+
+    let output_code = parse_then_emit(
+        &input_code,
+        Config::default()
+            .with_target(EsVersion::latest())
+            .with_minify(true),
+        Syntax::default(),
+    );
+
+    let expected = run_node(&input_code);
+    let actual = run_node(&output_code);
+
+    assert_eq!(actual, expected);
 }

@@ -1,5 +1,8 @@
+use std::sync::Arc;
+
 use indexmap::IndexSet;
 use preset_env_base::{version::should_enable, Versions};
+use rustc_hash::FxBuildHasher;
 use swc_atoms::js_word;
 use swc_common::DUMMY_SP;
 use swc_ecma_ast::*;
@@ -10,12 +13,12 @@ use super::builtin::BUILTINS;
 #[derive(Debug)]
 pub struct Entry {
     is_any_target: bool,
-    target: Versions,
-    pub imports: IndexSet<&'static str, ahash::RandomState>,
+    target: Arc<Versions>,
+    pub imports: IndexSet<&'static str, FxBuildHasher>,
 }
 
 impl Entry {
-    pub fn new(target: Versions, regenerator: bool) -> Self {
+    pub fn new(target: Arc<Versions>, regenerator: bool) -> Self {
         let is_any_target = target.is_any_target();
         let is_web_target = target.into_iter().any(|(k, v)| {
             if k == "node" {
@@ -51,21 +54,21 @@ impl Entry {
         }
 
         for (feature, version) in BUILTINS.iter() {
-            self.add_inner(feature, *version);
+            self.add_inner(feature, version);
         }
 
         true
     }
 
-    fn add_inner(&mut self, feature: &'static str, version: Versions) {
-        if self.is_any_target || should_enable(self.target, version, true) {
+    fn add_inner(&mut self, feature: &'static str, version: &Versions) {
+        if self.is_any_target || should_enable(&self.target, version, true) {
             self.imports.insert(feature);
         }
     }
 }
 
 impl VisitMut for Entry {
-    noop_visit_mut_type!();
+    noop_visit_mut_type!(fail);
 
     fn visit_mut_import_decl(&mut self, i: &mut ImportDecl) {
         let remove = i.specifiers.is_empty() && self.add_all(&i.src.value);
@@ -86,27 +89,22 @@ impl VisitMut for Entry {
                     ..
                 }) = &**expr
                 {
-                    if let Expr::Ident(Ident {
-                        sym: js_word!("require"),
-                        ..
-                    }) = &**callee
-                    {
-                        if args.len() == 1
-                            && if let ExprOrSpread { spread: None, expr } = &args[0] {
-                                if let Expr::Lit(Lit::Str(s)) = &**expr {
-                                    s.value == *"core-js"
-                                        || s.value == *"@swc/polyfill"
-                                        || s.value == *"@babel/polyfill"
-                                } else {
-                                    false
-                                }
+                    if callee.is_ident_ref_to("require")
+                        && args.len() == 1
+                        && if let ExprOrSpread { spread: None, expr } = &args[0] {
+                            if let Expr::Lit(Lit::Str(s)) = &**expr {
+                                s.value == *"core-js"
+                                    || s.value == *"@swc/polyfill"
+                                    || s.value == *"@babel/polyfill"
                             } else {
                                 false
                             }
-                            && self.add_all("@swc/polyfill")
-                        {
-                            return false;
+                        } else {
+                            false
                         }
+                        && self.add_all("@swc/polyfill")
+                    {
+                        return false;
                     }
                 }
             }

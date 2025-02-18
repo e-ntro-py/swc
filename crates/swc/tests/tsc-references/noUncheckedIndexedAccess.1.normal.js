@@ -1,21 +1,21 @@
 //// [noUncheckedIndexedAccess.ts]
-var NumericEnum1;
-(function(NumericEnum1) {
+var NumericEnum1 = /*#__PURE__*/ function(NumericEnum1) {
     NumericEnum1[NumericEnum1["A"] = 0] = "A";
     NumericEnum1[NumericEnum1["B"] = 1] = "B";
     NumericEnum1[NumericEnum1["C"] = 2] = "C";
-})(NumericEnum1 || (NumericEnum1 = {}));
-var NumericEnum2;
-(function(NumericEnum2) {
+    return NumericEnum1;
+}(NumericEnum1 || {});
+var NumericEnum2 = /*#__PURE__*/ function(NumericEnum2) {
     NumericEnum2[NumericEnum2["A"] = 0] = "A";
     NumericEnum2[NumericEnum2["B"] = 1] = "B";
     NumericEnum2[NumericEnum2["C"] = 2] = "C";
-})(NumericEnum2 || (NumericEnum2 = {}));
-var StringEnum1;
-(function(StringEnum1) {
+    return NumericEnum2;
+}(NumericEnum2 || {});
+var StringEnum1 = /*#__PURE__*/ function(StringEnum1) {
     StringEnum1["A"] = "Alpha";
     StringEnum1["B"] = "Beta";
-})(StringEnum1 || (StringEnum1 = {}));
+    return StringEnum1;
+}(StringEnum1 || {});
 // All of these should be errors
 var e1 = strMap["foo"];
 var e2 = strMap.bar;
@@ -24,12 +24,12 @@ var e4 = strMap[0];
 var e5 = strMap[0];
 var e6 = strMap[0];
 var e7 = strMap["foo"];
-var e8 = strMap[NumericEnum1.A];
-var e9 = strMap[NumericEnum2.A];
-var e10 = strMap[StringEnum1.A];
-var e11 = strMap[StringEnum1.A];
-var e12 = strMap[NumericEnum1.A];
-var e13 = strMap[NumericEnum2.A];
+var e8 = strMap[0];
+var e9 = strMap[0];
+var e10 = strMap["Alpha"];
+var e11 = strMap["Alpha"];
+var e12 = strMap[0];
+var e13 = strMap[0];
 var e14 = strMap[null];
 // Should be OK
 var ok1 = strMap["foo"];
@@ -43,8 +43,8 @@ strMap[null] = undefined;
 var num_ok1 = numMap[0];
 var num_ok2 = numMap[0];
 var num_ok3 = numMap[0];
-var num_ok4 = numMap[NumericEnum1.A];
-var num_ok5 = numMap[NumericEnum2.A];
+var num_ok4 = numMap[0];
+var num_ok5 = numMap[0];
 // Generics
 function generic1(arg) {
     // Should error

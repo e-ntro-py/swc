@@ -58,7 +58,7 @@
 //!     //     .load_file(Path::new("test.js"))
 //!     //     .expect("failed to load test.js");
 //!     let fm = cm.new_source_file(
-//!         FileName::Custom("test.js".into()),
+//!         FileName::Custom("test.js".into()).into(),
 //!         "function foo() {}".into(),
 //!     );
 //!     let lexer = Lexer::new(
@@ -127,34 +127,31 @@
 use error::Error;
 use lexer::Lexer;
 use serde::{Deserialize, Serialize};
+pub use swc_common::input::{Input, StringInput};
 use swc_common::{comments::Comments, input::SourceFileInput, SourceFile};
 use swc_ecma_ast::*;
 
-pub use self::{
-    lexer::input::{Input, StringInput},
-    parser::*,
-};
-#[deprecated(note = "Use `EsVersion` instead")]
-pub type JscTarget = EsVersion;
+pub use self::parser::*;
 
 #[macro_use]
 mod macros;
+#[macro_use]
+pub mod token;
 pub mod error;
 pub mod lexer;
 mod parser;
-pub mod token;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields, tag = "syntax")]
 pub enum Syntax {
     /// Standard
     #[serde(rename = "ecmascript")]
-    Es(EsConfig),
+    Es(EsSyntax),
     /// This variant requires the cargo feature `typescript` to be enabled.
     #[cfg(feature = "typescript")]
     #[cfg_attr(docsrs, doc(cfg(feature = "typescript")))]
     #[serde(rename = "typescript")]
-    Typescript(TsConfig),
+    Typescript(TsSyntax),
 }
 
 impl Default for Syntax {
@@ -166,57 +163,63 @@ impl Default for Syntax {
 impl Syntax {
     fn auto_accessors(self) -> bool {
         match self {
-            Syntax::Es(EsConfig {
+            Syntax::Es(EsSyntax {
                 auto_accessors: true,
                 ..
             }) => true,
+            #[cfg(feature = "typescript")]
             Syntax::Typescript(_) => true,
             _ => false,
         }
     }
 
-    pub fn import_assertions(self) -> bool {
+    pub fn import_attributes(self) -> bool {
         match self {
-            Syntax::Es(EsConfig {
-                import_assertions, ..
-            }) => import_assertions,
+            Syntax::Es(EsSyntax {
+                import_attributes, ..
+            }) => import_attributes,
+            #[cfg(feature = "typescript")]
             Syntax::Typescript(_) => true,
         }
     }
 
     /// Should we parse jsx?
     pub fn jsx(self) -> bool {
-        matches!(
-            self,
-            Syntax::Es(EsConfig { jsx: true, .. }) | Syntax::Typescript(TsConfig { tsx: true, .. })
-        )
+        match self {
+            Syntax::Es(EsSyntax { jsx: true, .. }) => true,
+            #[cfg(feature = "typescript")]
+            Syntax::Typescript(TsSyntax { tsx: true, .. }) => true,
+            _ => false,
+        }
     }
 
     pub fn fn_bind(self) -> bool {
-        matches!(self, Syntax::Es(EsConfig { fn_bind: true, .. }))
+        matches!(self, Syntax::Es(EsSyntax { fn_bind: true, .. }))
     }
 
     pub fn decorators(self) -> bool {
-        matches!(
-            self,
-            Syntax::Es(EsConfig {
-                decorators: true,
-                ..
-            }) | Syntax::Typescript(TsConfig {
-                decorators: true,
-                ..
-            })
-        )
+        match self {
+            Syntax::Es(EsSyntax {
+                decorators: true, ..
+            }) => true,
+            #[cfg(feature = "typescript")]
+            Syntax::Typescript(TsSyntax {
+                decorators: true, ..
+            }) => true,
+            _ => false,
+        }
     }
 
     pub fn decorators_before_export(self) -> bool {
-        matches!(
-            self,
-            Syntax::Es(EsConfig {
+        match self {
+            Syntax::Es(EsSyntax {
                 decorators_before_export: true,
                 ..
-            }) | Syntax::Typescript(..)
-        )
+            }) => true,
+            #[cfg(feature = "typescript")]
+            Syntax::Typescript(..) => true,
+            _ => false,
+        }
     }
 
     /// Should we parse typescript?
@@ -234,7 +237,7 @@ impl Syntax {
     pub fn export_default_from(self) -> bool {
         matches!(
             self,
-            Syntax::Es(EsConfig {
+            Syntax::Es(EsSyntax {
                 export_default_from: true,
                 ..
             })
@@ -243,6 +246,7 @@ impl Syntax {
 
     pub fn dts(self) -> bool {
         match self {
+            #[cfg(feature = "typescript")]
             Syntax::Typescript(t) => t.dts,
             _ => false,
         }
@@ -250,26 +254,29 @@ impl Syntax {
 
     pub(crate) fn allow_super_outside_method(self) -> bool {
         match self {
-            Syntax::Es(EsConfig {
+            Syntax::Es(EsSyntax {
                 allow_super_outside_method,
                 ..
             }) => allow_super_outside_method,
+            #[cfg(feature = "typescript")]
             Syntax::Typescript(_) => true,
         }
     }
 
     pub(crate) fn allow_return_outside_function(self) -> bool {
         match self {
-            Syntax::Es(EsConfig {
+            Syntax::Es(EsSyntax {
                 allow_return_outside_function,
                 ..
             }) => allow_return_outside_function,
+            #[cfg(feature = "typescript")]
             Syntax::Typescript(_) => false,
         }
     }
 
     pub(crate) fn early_errors(self) -> bool {
         match self {
+            #[cfg(feature = "typescript")]
             Syntax::Typescript(t) => !t.no_early_errors,
             Syntax::Es(..) => true,
         }
@@ -277,14 +284,19 @@ impl Syntax {
 
     fn disallow_ambiguous_jsx_like(self) -> bool {
         match self {
+            #[cfg(feature = "typescript")]
             Syntax::Typescript(t) => t.disallow_ambiguous_jsx_like,
             _ => false,
         }
     }
 
-    fn using_decl(&self) -> bool {
+    pub fn explicit_resource_management(&self) -> bool {
         match self {
-            Syntax::Es(EsConfig { using_decl, .. }) => *using_decl,
+            Syntax::Es(EsSyntax {
+                explicit_resource_management: using_decl,
+                ..
+            }) => *using_decl,
+            #[cfg(feature = "typescript")]
             Syntax::Typescript(_) => true,
         }
     }
@@ -292,7 +304,7 @@ impl Syntax {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TsConfig {
+pub struct TsSyntax {
     #[serde(default)]
     pub tsx: bool,
 
@@ -317,7 +329,7 @@ pub struct TsConfig {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct EsConfig {
+pub struct EsSyntax {
     #[serde(default)]
     pub jsx: bool,
 
@@ -341,8 +353,8 @@ pub struct EsConfig {
     pub export_default_from: bool,
 
     /// Stage 3.
-    #[serde(default)]
-    pub import_assertions: bool,
+    #[serde(default, alias = "importAssertions")]
+    pub import_attributes: bool,
 
     #[serde(default, rename = "allowSuperOutsideMethod")]
     pub allow_super_outside_method: bool,
@@ -354,7 +366,7 @@ pub struct EsConfig {
     pub auto_accessors: bool,
 
     #[serde(default)]
-    pub using_decl: bool,
+    pub explicit_resource_management: bool,
 }
 
 /// Syntactic context.
@@ -377,6 +389,9 @@ pub struct Context {
     /// If true, yield expression is parsed, and "yield" is treated as a
     /// keyword.
     in_generator: bool,
+
+    /// If true, await is treated as a keyword.
+    in_static_block: bool,
 
     is_continue_allowed: bool,
     is_break_allowed: bool,
@@ -435,7 +450,7 @@ where
     use swc_common::FileName;
 
     ::testing::run_test(false, |cm, handler| {
-        let fm = cm.new_source_file(FileName::Real("testing".into()), src.into());
+        let fm = cm.new_source_file(FileName::Real("testing".into()).into(), src.into());
 
         f(handler, (&*fm).into())
     })
@@ -490,13 +505,22 @@ expose!(parse_file_as_script, Script, |p| { p.parse_script() });
 expose!(parse_file_as_program, Program, |p| { p.parse_program() });
 
 #[inline(always)]
-#[cfg(any(target_arch = "wasm32", target_arch = "arm"))]
+#[cfg(any(
+    target_arch = "wasm32",
+    target_arch = "arm",
+    not(feature = "stacker"),
+    // miri does not work with stacker
+    miri
+))]
 fn maybe_grow<R, F: FnOnce() -> R>(_red_zone: usize, _stack_size: usize, callback: F) -> R {
     callback()
 }
 
 #[inline(always)]
-#[cfg(not(any(target_arch = "wasm32", target_arch = "arm")))]
+#[cfg(all(
+    not(any(target_arch = "wasm32", target_arch = "arm", miri)),
+    feature = "stacker"
+))]
 fn maybe_grow<R, F: FnOnce() -> R>(red_zone: usize, stack_size: usize, callback: F) -> R {
     stacker::maybe_grow(red_zone, stack_size, callback)
 }

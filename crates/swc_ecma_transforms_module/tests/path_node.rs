@@ -1,6 +1,6 @@
 use std::{
-    env::current_dir,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use indexmap::IndexMap;
@@ -12,7 +12,7 @@ use swc_ecma_transforms_module::{
     path::{ImportResolver, NodeImportResolver},
     rewriter::import_rewriter,
 };
-use swc_ecma_transforms_testing::test_fixture;
+use swc_ecma_transforms_testing::{test_fixture, FixtureTestConfig};
 use testing::run_test2;
 
 type TestProvider = NodeImportResolver<NodeModulesResolver>;
@@ -22,7 +22,7 @@ fn node_modules() {
     let provider = TestProvider::default();
 
     run_test2(false, |cm, _| {
-        let fm = cm.new_source_file(FileName::Real("foo".into()), "".into());
+        let fm = cm.new_source_file(FileName::Real("foo".into()).into(), "".into());
 
         let resolved = provider
             .resolve_import(&fm.name, "core-js")
@@ -37,7 +37,9 @@ fn node_modules() {
 
 #[test]
 fn issue_4730() {
-    let dir = Path::new("tests/fixture-manual/issue-4730");
+    let dir = Path::new("tests/fixture-manual/issue-4730")
+        .canonicalize()
+        .unwrap();
     let input_dir = dir.join("input");
     let output_dir = dir.join("output");
 
@@ -47,31 +49,23 @@ fn issue_4730() {
             let mut paths = IndexMap::new();
             paths.insert(
                 "@print/a".into(),
-                vec![current_dir()
-                    .unwrap()
-                    .join("tests")
-                    .join("fixture-manual")
-                    .join("issue-4730")
+                vec![dir
                     .join("input")
                     .join("packages")
                     .join("a")
                     .join("src")
-                    .join("index.ts")
+                    .join("index.js")
                     .display()
                     .to_string()],
             );
             paths.insert(
                 "@print/b".into(),
-                vec![current_dir()
-                    .unwrap()
-                    .join("tests")
-                    .join("fixture-manual")
-                    .join("issue-4730")
+                vec![dir
                     .join("input")
                     .join("packages")
                     .join("b")
                     .join("src")
-                    .join("index.ts")
+                    .join("index.js")
                     .display()
                     .to_string()],
             );
@@ -82,29 +76,39 @@ fn issue_4730() {
 
             import_rewriter(
                 FileName::Real(input_dir.join("src").join("index.js")),
-                resolver,
+                Arc::new(resolver),
             )
         },
         &input_dir.join("src").join("index.js"),
         &output_dir.join("index.js"),
-        Default::default(),
+        FixtureTestConfig {
+            module: Some(true),
+            ..Default::default()
+        },
     );
 }
 
 type JscPathsProvider = NodeImportResolver<TsConfigResolver<NodeModulesResolver>>;
 
-fn paths_resolver(
-    base_url: impl AsRef<Path>,
-    rules: Vec<(String, Vec<String>)>,
-) -> JscPathsProvider {
-    let base_url = base_url.as_ref().to_path_buf();
-    dbg!(&base_url);
+fn paths_resolver(base_dir: &Path, rules: Vec<(String, Vec<String>)>) -> JscPathsProvider {
+    let base_dir = base_dir
+        .to_path_buf()
+        .canonicalize()
+        .expect("failed to canonicalize");
+    dbg!(&base_dir);
 
-    NodeImportResolver::new(TsConfigResolver::new(
-        NodeModulesResolver::new(swc_ecma_loader::TargetEnv::Node, Default::default(), true),
-        base_url,
-        rules,
-    ))
+    NodeImportResolver::with_config(
+        TsConfigResolver::new(
+            NodeModulesResolver::new(swc_ecma_loader::TargetEnv::Node, Default::default(), true),
+            base_dir.clone(),
+            rules,
+        ),
+        swc_ecma_transforms_module::path::Config {
+            base_dir: Some(base_dir),
+            resolve_fully: true,
+            file_extension: swc_ecma_transforms_module::util::Config::default_js_ext(),
+        },
+    )
 }
 
 #[derive(Deserialize)]
@@ -129,19 +133,27 @@ fn fixture(input_dir: PathBuf) {
     let config = serde_json::from_str::<TestConfig>(&paths_json).unwrap();
 
     let index_path = input_dir.join(config.input_file.as_deref().unwrap_or("index.ts"));
+    dbg!(&index_path);
 
+    let base_dir = input_dir
+        .join(config.base_url.clone().unwrap_or(input_dir.clone()))
+        .canonicalize()
+        .unwrap();
+    dbg!(&base_dir);
     test_fixture(
         Syntax::default(),
         &|_| {
             let rules = config.paths.clone().into_iter().collect();
 
-            let resolver =
-                paths_resolver(config.base_url.clone().unwrap_or(input_dir.clone()), rules);
+            let resolver = paths_resolver(&base_dir, rules);
 
-            import_rewriter(FileName::Real(index_path.clone()), resolver)
+            import_rewriter(FileName::Real(index_path.clone()), Arc::new(resolver))
         },
         &index_path,
         &output_dir.join("index.ts"),
-        Default::default(),
+        FixtureTestConfig {
+            module: Some(true),
+            ..Default::default()
+        },
     );
 }

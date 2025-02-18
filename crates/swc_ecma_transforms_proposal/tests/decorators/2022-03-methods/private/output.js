@@ -2,7 +2,7 @@ var _call_a, _initProto;
 const dec = ()=>{};
 class Foo {
     static{
-        ({ e: [_call_a, _initProto]  } = _apply_decs_2203_r(this, [
+        ({ e: [_call_a, _initProto] } = _apply_decs_2203_r(this, [
             [
                 dec,
                 2,
@@ -13,11 +13,10 @@ class Foo {
             ]
         ], []));
     }
-    constructor(){
-        _initProto(this);
+    value = (_initProto(this), 1);
+    get #a() {
+        return _call_a;
     }
-    value = 1;
-    #a = _call_a;
     callA() {
         return this.#a();
     }

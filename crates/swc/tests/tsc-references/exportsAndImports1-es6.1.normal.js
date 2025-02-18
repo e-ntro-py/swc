@@ -12,50 +12,47 @@ function _export(target, all) {
     });
 }
 _export(exports, {
-    v: function() {
-        return v;
-    },
-    f: function() {
-        return f;
-    },
     C: function() {
         return C;
     },
-    E: function() {
-        return E;
-    },
     D: function() {
         return D;
+    },
+    E: function() {
+        return E;
     },
     M: function() {
         return M;
     },
     a: function() {
         return a;
+    },
+    f: function() {
+        return f;
+    },
+    v: function() {
+        return v;
     }
 });
 var v = 1;
 function f() {}
 class C {
 }
-var E;
-(function(E) {
+var E = /*#__PURE__*/ function(E) {
     E[E["A"] = 0] = "A";
     E[E["B"] = 1] = "B";
     E[E["C"] = 2] = "C";
-})(E || (E = {}));
-var D;
-(function(D) {
+    return E;
+}(E || {});
+var D = /*#__PURE__*/ function(D) {
     D[D["A"] = 0] = "A";
     D[D["B"] = 1] = "B";
     D[D["C"] = 2] = "C";
-})(D || (D = {}));
+    return D;
+}(D || {});
+(function(M) {})(M || (M = {}));
+const a = M.x;
 var M;
-(function(M) {
-    var x;
-    M.x = x;
-})(M || (M = {}));
-var a = M.x;
 //// [t2.ts]
 "use strict";
 Object.defineProperty(exports, "__esModule", {
@@ -68,23 +65,17 @@ function _export(target, all) {
     });
 }
 _export(exports, {
-    v: function() {
-        return _t1.v;
-    },
-    f: function() {
-        return _t1.f;
-    },
     C: function() {
         return _t1.C;
     },
-    I: function() {
-        return _t1.I;
+    D: function() {
+        return _t1.D;
     },
     E: function() {
         return _t1.E;
     },
-    D: function() {
-        return _t1.D;
+    I: function() {
+        return _t1.I;
     },
     M: function() {
         return _t1.M;
@@ -97,6 +88,12 @@ _export(exports, {
     },
     a: function() {
         return _t1.a;
+    },
+    f: function() {
+        return _t1.f;
+    },
+    v: function() {
+        return _t1.v;
     }
 });
 const _t1 = require("./t1");
@@ -112,23 +109,17 @@ function _export(target, all) {
     });
 }
 _export(exports, {
-    v: function() {
-        return _t1.v;
-    },
-    f: function() {
-        return _t1.f;
-    },
     C: function() {
         return _t1.C;
     },
-    I: function() {
-        return _t1.I;
+    D: function() {
+        return _t1.D;
     },
     E: function() {
         return _t1.E;
     },
-    D: function() {
-        return _t1.D;
+    I: function() {
+        return _t1.I;
     },
     M: function() {
         return _t1.M;
@@ -141,6 +132,12 @@ _export(exports, {
     },
     a: function() {
         return _t1.a;
+    },
+    f: function() {
+        return _t1.f;
+    },
+    v: function() {
+        return _t1.v;
     }
 });
 const _t1 = require("./t1");

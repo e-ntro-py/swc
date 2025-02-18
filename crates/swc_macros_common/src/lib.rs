@@ -2,32 +2,21 @@
 
 extern crate proc_macro;
 
-#[cfg(procmacro2_semver_exempt)]
-use pmutil::SpanExt;
-use pmutil::{q, synom_ext::FromSpan, Quote, SpanExt};
-use proc_macro2::Span;
+use proc_macro2::{Span, TokenStream};
 use quote::ToTokens;
-use syn::*;
+use syn::{punctuated::Pair, *};
 
 pub mod binder;
 pub mod derive;
 pub mod prelude;
 mod syn_ext;
 
-pub fn call_site<T: FromSpan>() -> T {
-    T::from_span(Span::call_site())
+pub fn call_site() -> Span {
+    Span::call_site()
 }
 
-/// `Span::def_site().located_at(Span::call_site()).as_token()`
-#[cfg(not(procmacro2_semver_exempt))]
-pub fn def_site<T: FromSpan>() -> T {
+pub fn def_site() -> Span {
     call_site()
-}
-
-/// `Span::def_site().located_at(Span::call_site()).as_token()`
-#[cfg(procmacro2_semver_exempt)]
-pub fn def_site<T: FromSpan>() -> T {
-    Span::def_site().located_at(Span::call_site()).as_token()
 }
 
 /// `attr` - tokens inside `#[]`. e.g. `derive(EqIgnoreSpan)`, ast_node
@@ -44,28 +33,21 @@ pub fn print(attr: &'static str, tokens: proc_macro2::TokenStream) -> proc_macro
 }
 
 pub fn is_attr_name(attr: &Attribute, name: &str) -> bool {
-    match *attr {
-        Attribute {
-            path:
-                Path {
-                    leading_colon: None,
-                    ref segments,
-                },
-            ..
-        } if segments.len() == 1 => segments.first().unwrap().ident == name,
-        _ => false,
-    }
+    attr.path().is_ident(name)
 }
 
 /// Returns `None` if `attr` is not a doc attribute.
 pub fn doc_str(attr: &Attribute) -> Option<String> {
     fn parse_tts(attr: &Attribute) -> String {
-        let meta = attr.parse_meta().ok();
-        match meta {
-            Some(Meta::NameValue(MetaNameValue {
-                lit: Lit::Str(s), ..
-            })) => s.value(),
-            _ => panic!("failed to parse {}", attr.tokens),
+        match &attr.meta {
+            Meta::NameValue(MetaNameValue {
+                value:
+                    Expr::Lit(ExprLit {
+                        lit: Lit::Str(s), ..
+                    }),
+                ..
+            }) => s.value(),
+            _ => panic!("failed to parse {:?}", attr.meta),
         }
     }
 
@@ -78,12 +60,28 @@ pub fn doc_str(attr: &Attribute) -> Option<String> {
 
 /// Creates a doc comment.
 pub fn make_doc_attr(s: &str) -> Attribute {
+    let span = Span::call_site();
+
     Attribute {
-        pound_token: def_site(),
         style: AttrStyle::Outer,
-        bracket_token: def_site(),
-        path: Ident::new("doc", def_site()).into(),
-        tokens: q!(Vars { s },{ = s }).into(),
+        bracket_token: Default::default(),
+        pound_token: Token![#](span),
+        meta: Meta::NameValue(MetaNameValue {
+            path: Path {
+                leading_colon: None,
+                segments: vec![Pair::End(PathSegment {
+                    ident: Ident::new("doc", span),
+                    arguments: Default::default(),
+                })]
+                .into_iter()
+                .collect(),
+            },
+            eq_token: Token![=](span),
+            value: Expr::Lit(ExprLit {
+                attrs: Default::default(),
+                lit: Lit::Str(LitStr::new(s, span)),
+            }),
+        }),
     }
 }
 
@@ -92,7 +90,7 @@ pub fn access_field(obj: &dyn ToTokens, idx: usize, f: &Field) -> Expr {
         attrs: Default::default(),
         base: syn::parse2(obj.to_token_stream())
             .expect("swc_macros_common::access_field: failed to parse object"),
-        dot_token: Span::call_site().as_token(),
+        dot_token: Token![.](Span::call_site()),
         member: match &f.ident {
             Some(id) => Member::Named(id.clone()),
             _ => Member::Unnamed(Index {
@@ -103,11 +101,11 @@ pub fn access_field(obj: &dyn ToTokens, idx: usize, f: &Field) -> Expr {
     })
 }
 
-pub fn join_stmts(stmts: &[Stmt]) -> Quote {
-    let mut q = Quote::new_call_site();
+pub fn join_stmts(stmts: &[Stmt]) -> TokenStream {
+    let mut q = TokenStream::new();
 
     for s in stmts {
-        q.push_tokens(s);
+        s.to_tokens(&mut q);
     }
 
     q

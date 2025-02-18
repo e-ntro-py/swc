@@ -1,8 +1,4 @@
 //// [enumAssignability.ts]
-var E, F, Others;
 import "@swc/helpers/_/_class_call_check";
-!function(E) {
-    E[E.A = 0] = "A";
-}(E || (E = {})), function(F) {
-    F[F.B = 0] = "B";
-}(F || (F = {})), E.A, F.B, Others || (Others = {});
+var F, E, Others, E1 = ((E = E1 || {})[E.A = 0] = "A", E), F1 = ((F = F1 || {})[F.B = 0] = "B", F);
+Others || (Others = {});

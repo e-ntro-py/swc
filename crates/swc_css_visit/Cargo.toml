@@ -2,11 +2,11 @@
 authors       = ["강동윤 <kdy1997.dev@gmail.com>"]
 description   = "Visitor for css"
 documentation = "https://rustdoc.swc.rs/swc_css_visit/"
-edition       = "2021"
-license       = "Apache-2.0"
+edition       = { workspace = true }
+license       = { workspace = true }
 name          = "swc_css_visit"
-repository    = "https://github.com/swc-project/swc.git"
-version       = "0.136.12"
+repository    = { workspace = true }
+version       = "7.0.0"
 
   [package.metadata.docs.rs]
   all-features = true
@@ -16,13 +16,14 @@ version       = "0.136.12"
 bench = false
 
 [features]
-default = ["serde"]
-path    = []
+default    = ["serde"]
+path       = []
+serde-impl = ["serde"]
 
 [dependencies]
-serde = { version = "1", optional = true }
+serde = { workspace = true, optional = true, features = ["derive"] }
 
-swc_atoms   = { version = "0.5.6", path = "../swc_atoms" }
-swc_common  = { version = "0.31.12", path = "../swc_common" }
-swc_css_ast = { version = "0.137.12", path = "../swc_css_ast" }
-swc_visit   = { version = "0.5.6", path = "../swc_visit" }
+swc_atoms   = { version = "4.0.0", path = "../swc_atoms" }
+swc_common  = { version = "7.0.0", path = "../swc_common" }
+swc_css_ast = { version = "7.0.0", path = "../swc_css_ast" }
+swc_visit   = { version = "2.0.0", path = "../swc_visit" }

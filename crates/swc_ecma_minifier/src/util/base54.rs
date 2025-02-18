@@ -2,12 +2,13 @@ use std::{cmp::Reverse, io, ops::AddAssign};
 
 use arrayvec::ArrayVec;
 use rustc_hash::FxHashSet;
-use swc_atoms::{js_word, JsWord};
+use swc_atoms::JsWord;
 use swc_common::{
     sync::Lrc, BytePos, FileLines, FileName, Loc, SourceMapper, Span, SpanLinesError, SyntaxContext,
 };
 use swc_ecma_ast::*;
 use swc_ecma_codegen::{text_writer::WriteJs, Emitter};
+use swc_ecma_utils::parallel::{cpu_count, Parallel, ParallelExt};
 use swc_ecma_visit::{noop_visit_type, visit_obj_and_computed, Visit, VisitWith};
 
 #[derive(Clone, Copy)]
@@ -40,8 +41,8 @@ impl SourceMapper for DummySourceMap {
         String::new()
     }
 
-    fn span_to_filename(&self, _: Span) -> FileName {
-        FileName::Anon
+    fn span_to_filename(&self, _: Span) -> Lrc<FileName> {
+        FileName::Anon.into()
     }
 
     fn merge_spans(&self, _: Span, _: Span) -> Option<Span> {
@@ -178,6 +179,11 @@ impl WriteJs for CharFreq {
     fn commit_pending_semi(&mut self) -> io::Result<()> {
         Ok(())
     }
+
+    #[inline(always)]
+    fn can_ignore_invalid_unicodes(&mut self) -> bool {
+        true
+    }
 }
 
 impl CharFreq {
@@ -221,34 +227,43 @@ impl CharFreq {
     }
 
     pub fn compute(p: &Program, preserved: &FxHashSet<Id>, unresolved_ctxt: SyntaxContext) -> Self {
-        let cm = Lrc::new(DummySourceMap);
+        let (mut a, b) = swc_parallel::join(
+            || {
+                let cm = Lrc::new(DummySourceMap);
+                let mut freq = Self::default();
 
-        let mut freq = Self::default();
+                {
+                    let mut emitter = Emitter {
+                        cfg: swc_ecma_codegen::Config::default()
+                            .with_target(EsVersion::latest())
+                            .with_minify(true),
+                        cm,
+                        comments: None,
+                        wr: &mut freq,
+                    };
 
-        {
-            let mut emitter = Emitter {
-                cfg: swc_ecma_codegen::Config {
-                    target: EsVersion::latest(),
-                    ascii_only: false,
-                    minify: true,
-                    ..Default::default()
-                },
-                cm,
-                comments: None,
-                wr: &mut freq,
-            };
+                    emitter.emit_program(p).unwrap();
+                }
 
-            emitter.emit_program(p).unwrap();
-        }
+                freq
+            },
+            || {
+                let mut visitor = CharFreqAnalyzer {
+                    freq: Default::default(),
+                    preserved,
+                    unresolved_ctxt,
+                };
 
-        // Subtract
-        p.visit_with(&mut CharFreqAnalyzer {
-            freq: &mut freq,
-            preserved,
-            unresolved_ctxt,
-        });
+                // Subtract
+                p.visit_with(&mut visitor);
 
-        freq
+                visitor.freq
+            },
+        );
+
+        a += b;
+
+        a
     }
 
     pub fn compile(self) -> Base54Chars {
@@ -288,9 +303,22 @@ impl CharFreq {
 }
 
 struct CharFreqAnalyzer<'a> {
-    freq: &'a mut CharFreq,
+    freq: CharFreq,
     preserved: &'a FxHashSet<Id>,
     unresolved_ctxt: SyntaxContext,
+}
+
+impl Parallel for CharFreqAnalyzer<'_> {
+    fn create(&self) -> Self {
+        Self {
+            freq: Default::default(),
+            ..*self
+        }
+    }
+
+    fn merge(&mut self, other: Self) {
+        self.freq += other.freq;
+    }
 }
 
 impl Visit for CharFreqAnalyzer<'_> {
@@ -298,8 +326,26 @@ impl Visit for CharFreqAnalyzer<'_> {
 
     visit_obj_and_computed!();
 
+    fn visit_class_members(&mut self, members: &[ClassMember]) {
+        self.maybe_par(cpu_count() * 8, members, |v, member| {
+            member.visit_with(v);
+        });
+    }
+
+    fn visit_expr_or_spreads(&mut self, n: &[ExprOrSpread]) {
+        self.maybe_par(cpu_count() * 8, n, |v, n| {
+            n.visit_with(v);
+        });
+    }
+
+    fn visit_exprs(&mut self, exprs: &[Box<Expr>]) {
+        self.maybe_par(cpu_count() * 8, exprs, |v, expr| {
+            expr.visit_with(v);
+        });
+    }
+
     fn visit_ident(&mut self, i: &Ident) {
-        if i.sym != js_word!("arguments") && i.span.ctxt == self.unresolved_ctxt {
+        if i.ctxt == self.unresolved_ctxt && i.sym != "arguments" {
             return;
         }
 
@@ -309,6 +355,21 @@ impl Visit for CharFreqAnalyzer<'_> {
         }
 
         self.freq.scan(&i.sym, -1);
+    }
+
+    /// This is preserved anyway
+    fn visit_module_export_name(&mut self, _: &ModuleExportName) {}
+
+    fn visit_module_items(&mut self, items: &[ModuleItem]) {
+        self.maybe_par(cpu_count() * 8, items, |v, item| {
+            item.visit_with(v);
+        });
+    }
+
+    fn visit_opt_vec_expr_or_spreads(&mut self, n: &[Option<ExprOrSpread>]) {
+        self.maybe_par(cpu_count() * 8, n, |v, n| {
+            n.visit_with(v);
+        });
     }
 
     fn visit_prop_name(&mut self, n: &PropName) {
@@ -321,8 +382,17 @@ impl Visit for CharFreqAnalyzer<'_> {
         }
     }
 
-    /// This is preserved anyway
-    fn visit_module_export_name(&mut self, _: &ModuleExportName) {}
+    fn visit_prop_or_spreads(&mut self, n: &[PropOrSpread]) {
+        self.maybe_par(cpu_count() * 8, n, |v, n| {
+            n.visit_with(v);
+        });
+    }
+
+    fn visit_stmts(&mut self, stmts: &[Stmt]) {
+        self.maybe_par(cpu_count() * 8, stmts, |v, stmt| {
+            stmt.visit_with(v);
+        });
+    }
 }
 
 impl AddAssign for CharFreq {

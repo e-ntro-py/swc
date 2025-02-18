@@ -1,6 +1,6 @@
 //// [unknownType2.ts]
 var validate = function(x) {
-    return x === "yes" || x === "no" ? x : "idk";
+    return x === 'yes' || x === 'no' ? x : 'idk';
 }; // No error
 var u = undefined;
 if (u === 5) {
@@ -43,47 +43,47 @@ if (u === anIntersection) {}
 if (u === aFunction) {
     var uFunction = u;
 }
-var NumberEnum;
-(function(NumberEnum) {
+var NumberEnum = /*#__PURE__*/ function(NumberEnum) {
     NumberEnum[NumberEnum["A"] = 0] = "A";
     NumberEnum[NumberEnum["B"] = 1] = "B";
     NumberEnum[NumberEnum["C"] = 2] = "C";
-})(NumberEnum || (NumberEnum = {}));
-var StringEnum;
-(function(StringEnum) {
+    return NumberEnum;
+}(NumberEnum || {});
+var StringEnum = /*#__PURE__*/ function(StringEnum) {
     StringEnum["A"] = "A";
     StringEnum["B"] = "B";
     StringEnum["C"] = "C";
-})(StringEnum || (StringEnum = {}));
+    return StringEnum;
+}(StringEnum || {});
 if (u === NumberEnum || u === StringEnum) {
     var enumObj = u;
 }
-if (u === NumberEnum.A) {
+if (u === 0) {
     var a = u;
 }
-if (u === StringEnum.B) {
+if (u === "B") {
     var b = u;
 }
 function switchTestEnum(x) {
     switch(x){
-        case StringEnum.A:
+        case "A":
             var a = x;
             break;
-        case StringEnum.B:
+        case "B":
             var b = x;
             break;
-        case StringEnum.C:
+        case "C":
             var c = x;
             break;
     }
 }
 function switchTestCollectEnum(x) {
     switch(x){
-        case StringEnum.A:
+        case "A":
             var a = x;
-        case StringEnum.B:
+        case "B":
             var b = x;
-        case StringEnum.C:
+        case "C":
             var c = x;
             var all = x;
             return;
@@ -139,27 +139,27 @@ function switchTestObjects(x, y, z) {
 }
 function switchResponse(x) {
     switch(x){
-        case "yes":
-        case "no":
-        case "idk":
+        case 'yes':
+        case 'no':
+        case 'idk':
             return x;
         default:
-            throw new Error("unknown response");
+            throw new Error('unknown response');
     }
 }
 function switchResponseWrong(x) {
     switch(x){
-        case "yes":
-        case "no":
-        case "maybe":
+        case 'yes':
+        case 'no':
+        case 'maybe':
             return x; // error
         default:
-            throw new Error("Can you repeat the question?");
+            throw new Error('Can you repeat the question?');
     }
 }
 // Repro from #33483
 function f2(x) {
-    if (x !== undefined && typeof x !== "string") {
+    if (x !== undefined && typeof x !== 'string') {
         throw new Error();
     }
     return x;
@@ -168,14 +168,14 @@ function notNotEquals(u) {
     if (u !== NumberEnum) {} else {
         var o = u;
     }
-    if (u !== NumberEnum.A) {} else {
+    if (u !== 0) {} else {
         var a = u;
     }
-    if (u !== NumberEnum.A && u !== NumberEnum.B && u !== StringEnum.A) {} else {
+    if (u !== 0 && u !== 1 && u !== "A") {} else {
         var aOrB = u;
     }
     // equivalent to
-    if (!(u === NumberEnum.A || u === NumberEnum.B || u === StringEnum.A)) {} else {
+    if (!(u === 0 || u === 1 || u === "A")) {} else {
         var aOrB1 = u;
     }
 }

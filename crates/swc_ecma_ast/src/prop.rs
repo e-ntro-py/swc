@@ -6,15 +6,15 @@ use crate::{
     function::Function,
     ident::Ident,
     lit::{BigInt, Number, Str},
-    pat::Pat,
     stmt::BlockStmt,
     typescript::TsTypeAnn,
-    Id, MemberProp,
+    Id, IdentName, MemberProp, Pat,
 };
 
 #[ast_node]
 #[derive(Eq, Hash, Is, EqIgnoreSpan)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub enum Prop {
     /// `a` in `{ a, }`
     #[tag("Identifier")]
@@ -38,9 +38,12 @@ pub enum Prop {
     Method(MethodProp),
 }
 
+bridge_from!(Prop, Ident, IdentName);
+
 #[ast_node("KeyValueProperty")]
 #[derive(Eq, Hash, EqIgnoreSpan)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub struct KeyValueProp {
     #[span(lo)]
     pub key: PropName,
@@ -52,16 +55,17 @@ pub struct KeyValueProp {
 #[ast_node("AssignmentProperty")]
 #[derive(Eq, Hash, EqIgnoreSpan)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub struct AssignProp {
-    #[span(lo)]
+    pub span: Span,
     pub key: Ident,
-    #[span(hi)]
     pub value: Box<Expr>,
 }
 
 #[ast_node("GetterProperty")]
-#[derive(Eq, Hash, EqIgnoreSpan)]
+#[derive(Eq, Hash, EqIgnoreSpan, Default)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub struct GetterProp {
     pub span: Span,
     pub key: PropName,
@@ -71,11 +75,13 @@ pub struct GetterProp {
     pub body: Option<BlockStmt>,
 }
 #[ast_node("SetterProperty")]
-#[derive(Eq, Hash, EqIgnoreSpan)]
+#[derive(Eq, Hash, EqIgnoreSpan, Default)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub struct SetterProp {
     pub span: Span,
     pub key: PropName,
+    pub this_param: Option<Pat>,
     pub param: Box<Pat>,
     #[cfg_attr(feature = "serde-impl", serde(default))]
     pub body: Option<BlockStmt>,
@@ -83,6 +89,7 @@ pub struct SetterProp {
 #[ast_node("MethodProperty")]
 #[derive(Eq, Hash, EqIgnoreSpan)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub struct MethodProp {
     pub key: PropName,
 
@@ -94,9 +101,10 @@ pub struct MethodProp {
 #[ast_node]
 #[derive(Eq, Hash, Is, EqIgnoreSpan)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub enum PropName {
     #[tag("Identifier")]
-    Ident(Ident),
+    Ident(IdentName),
     /// String literal.
     #[tag("StringLiteral")]
     Str(Str),
@@ -109,7 +117,14 @@ pub enum PropName {
     BigInt(BigInt),
 }
 
+bridge_from!(PropName, IdentName, Ident);
 bridge_from!(PropName, Ident, Id);
+
+impl Default for PropName {
+    fn default() -> Self {
+        PropName::Ident(Default::default())
+    }
+}
 
 impl Take for PropName {
     fn dummy() -> Self {
@@ -141,6 +156,7 @@ impl From<PropName> for MemberProp {
 #[ast_node("Computed")]
 #[derive(Eq, Hash, EqIgnoreSpan)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub struct ComputedPropName {
     /// Span including `[` and `]`.
     pub span: Span,

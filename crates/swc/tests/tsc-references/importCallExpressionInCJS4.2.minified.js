@@ -1,5 +1,4 @@
 //// [0.ts]
-"use strict";
 Object.defineProperty(exports, "__esModule", {
     value: !0
 }), Object.defineProperty(exports, "B", {
@@ -14,13 +13,12 @@ class B {
     }
 }
 //// [2.ts]
-"use strict";
 Object.defineProperty(exports, "__esModule", {
     value: !0
 });
 const _interop_require_wildcard = require("@swc/helpers/_/_interop_require_wildcard");
 !async function() {
-    class C extends (await Promise.resolve().then(()=>_interop_require_wildcard._(require("./0")))).B {
+    class C extends (await Promise.resolve().then(()=>/*#__PURE__*/ _interop_require_wildcard._(require("./0")))).B {
     }
     new C().print();
 }();

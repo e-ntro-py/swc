@@ -10,20 +10,20 @@ function _export(target, all) {
     });
 }
 _export(exports, {
-    fn: function() {
-        return fn;
-    },
     cl1: function() {
         return cl1;
-    },
-    obj: function() {
-        return obj;
     },
     cl2: function() {
         return cl2;
     },
+    fn: function() {
+        return fn;
+    },
     l: function() {
         return l;
+    },
+    obj: function() {
+        return obj;
     }
 });
 var _async_to_generator = require("@swc/helpers/_/_async_to_generator");
@@ -130,7 +130,7 @@ var cl2 = function cl2() {
         })
     };
 };
-var l = function() {
+var l = /*#__PURE__*/ function() {
     var _ref = _async_to_generator._(function() {
         var req;
         return _ts_generator._(this, function(_state) {

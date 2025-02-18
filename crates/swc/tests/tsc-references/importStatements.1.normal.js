@@ -1,6 +1,5 @@
 //// [importStatements.ts]
 import { _ as _class_call_check } from "@swc/helpers/_/_class_call_check";
-var A;
 (function(A) {
     var Point = function Point(x, y) {
         "use strict";
@@ -9,10 +8,9 @@ var A;
         this.y = y;
     };
     A.Point = Point;
-    var Origin = A.Origin = new Point(0, 0);
+    A.Origin = new Point(0, 0);
 })(A || (A = {}));
 // no code gen expected
-var C;
 (function(C) {
     var m;
     var p;
@@ -22,16 +20,15 @@ var C;
     };
 })(C || (C = {}));
 // code gen expected
-var D;
 (function(D) {
     var a = A;
     var p = new a.Point(1, 1);
 })(D || (D = {}));
-var E;
 (function(E) {
-    var xDist = function xDist(x) {
-        return a.Origin.x - x.x;
-    };
     var a = A;
+    function xDist(x) {
+        return a.Origin.x - x.x;
+    }
     E.xDist = xDist;
 })(E || (E = {}));
+var A, C, D, E;

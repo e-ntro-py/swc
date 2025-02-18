@@ -1,12 +1,13 @@
 //! Module for `browserslist` queries.
 #![deny(clippy::all)]
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use anyhow::{Context, Error};
 use dashmap::DashMap;
 use from_variant::FromVariant;
 use once_cell::sync::Lazy;
+use rustc_hash::FxBuildHasher;
 use serde::Deserialize;
 
 use crate::{version::Version, BrowserData, Versions};
@@ -18,10 +19,7 @@ pub enum Targets {
     Query(Query),
     EsModules(EsModules),
     Versions(Versions),
-    /// This uses `ahash` directly to reduce build time.
-    ///
-    /// This type is identical to `swc_common::collections::AHashMap`
-    HashMap(HashMap<String, QueryOrVersion, ahash::RandomState>),
+    HashMap(HashMap<String, QueryOrVersion, FxBuildHasher>),
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -44,7 +42,7 @@ pub enum Query {
     Multiple(Vec<String>),
 }
 
-type QueryResult = Result<Versions, Error>;
+type QueryResult = Result<Arc<Versions>, Error>;
 
 impl Query {
     fn exec(&self) -> QueryResult {
@@ -54,9 +52,11 @@ impl Query {
         {
             let distribs = browserslist::resolve(
                 s,
-                browserslist::Opts::new()
-                    .mobile_to_desktop(true)
-                    .ignore_unknown_versions(true),
+                &browserslist::Opts {
+                    mobile_to_desktop: true,
+                    ignore_unknown_versions: true,
+                    ..Default::default()
+                },
             )
             .with_context(|| {
                 format!(
@@ -68,14 +68,14 @@ impl Query {
             let versions =
                 BrowserData::parse_versions(distribs).expect("failed to parse browser version");
 
-            Ok(versions)
+            Ok(Arc::new(versions))
         }
 
-        static CACHE: Lazy<DashMap<Query, Versions, ahash::RandomState>> =
+        static CACHE: Lazy<DashMap<Query, Arc<Versions>, FxBuildHasher>> =
             Lazy::new(Default::default);
 
         if let Some(v) = CACHE.get(self) {
-            return Ok(*v);
+            return Ok(v.clone());
         }
 
         let result = match *self {
@@ -90,16 +90,16 @@ impl Query {
         }
         .context("failed to execute query")?;
 
-        CACHE.insert(self.clone(), result);
+        CACHE.insert(self.clone(), result.clone());
 
         Ok(result)
     }
 }
 
-pub fn targets_to_versions(v: Option<Targets>) -> Result<Versions, Error> {
+pub fn targets_to_versions(v: Option<Targets>) -> Result<Arc<Versions>, Error> {
     match v {
         None => Ok(Default::default()),
-        Some(Targets::Versions(v)) => Ok(v),
+        Some(Targets::Versions(v)) => Ok(Arc::new(v)),
         Some(Targets::Query(q)) => q
             .exec()
             .context("failed to convert target query to version data"),
@@ -115,9 +115,26 @@ pub fn targets_to_versions(v: Option<Targets>) -> Result<Versions, Error> {
             });
 
             if map.is_empty() {
-                if let Some(mut q) = q {
+                if let Some(q) = q {
+                    let mut q = *q;
                     q.node = node;
-                    return Ok(q);
+                    return Ok(Arc::new(q));
+                }
+            }
+
+            let mut result = Versions::default();
+            for (k, v) in map.iter() {
+                match v {
+                    QueryOrVersion::Query(q) => {
+                        let v = q.exec().context("failed to run query")?;
+
+                        for (k, v) in v.iter() {
+                            result.insert(k, *v);
+                        }
+                    }
+                    QueryOrVersion::Version(v) => {
+                        result.insert(k, Some(*v));
+                    }
                 }
             }
 

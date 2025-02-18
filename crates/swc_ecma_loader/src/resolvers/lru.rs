@@ -1,16 +1,18 @@
+use std::num::NonZeroUsize;
+
 use anyhow::Error;
 use lru::LruCache;
 use parking_lot::Mutex;
 use swc_common::FileName;
 
-use crate::resolve::Resolve;
+use crate::resolve::{Resolution, Resolve};
 
 #[derive(Debug)]
 pub struct CachingResolver<R>
 where
     R: Resolve,
 {
-    cache: Mutex<LruCache<(FileName, String), FileName>>,
+    cache: Mutex<LruCache<(FileName, String), Resolution>>,
     inner: R,
 }
 
@@ -29,7 +31,9 @@ where
 {
     pub fn new(cap: usize, inner: R) -> Self {
         Self {
-            cache: Mutex::new(LruCache::new(cap)),
+            cache: Mutex::new(LruCache::new(
+                NonZeroUsize::try_from(cap).expect("cap == 0"),
+            )),
             inner,
         }
     }
@@ -39,7 +43,7 @@ impl<R> Resolve for CachingResolver<R>
 where
     R: Resolve,
 {
-    fn resolve(&self, base: &FileName, src: &str) -> Result<FileName, Error> {
+    fn resolve(&self, base: &FileName, src: &str) -> Result<Resolution, Error> {
         {
             let mut lock = self.cache.lock();
             //

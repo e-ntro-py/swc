@@ -1,9 +1,9 @@
-use pmutil::{q, IdentExt, SpanExt};
 use proc_macro2::Span;
+use quote::quote;
 use syn::{
-    parse, punctuated::Punctuated, spanned::Spanned, Arm, BinOp, Block, Data, DeriveInput, Expr,
-    ExprBinary, ExprBlock, Field, FieldPat, Fields, Ident, Index, Member, Pat, PatIdent, PatStruct,
-    PatTuple, Path, Stmt, Token,
+    parse, parse_quote, punctuated::Punctuated, spanned::Spanned, Arm, BinOp, Block, Data,
+    DeriveInput, Expr, ExprBinary, ExprBlock, Field, FieldPat, Fields, Ident, Index, Member, Pat,
+    PatIdent, PatRest, PatStruct, PatTuple, Path, Stmt, Token,
 };
 
 /// Derives `swc_common::TypeEq`.
@@ -18,7 +18,7 @@ pub fn derive_type_eq(item: proc_macro::TokenStream) -> proc_macro::TokenStream 
         ignore_field: Box::new(|field| {
             // Search for `#[not_type]`.
             for attr in &field.attrs {
-                if attr.path.is_ident("not_type") {
+                if attr.path().is_ident("not_type") {
                     return true;
                 }
             }
@@ -59,20 +59,15 @@ impl Deriver {
 
         let body = self.make_body(&input.data);
 
-        q!(
-            Vars {
-                TraitName: &self.trait_name,
-                Type: &input.ident,
-                method_name: &self.method_name,
-                body,
-            },
-            {
-                #[automatically_derived]
-                impl ::swc_common::TraitName for Type {
-                    #[allow(non_snake_case)]
-                    fn method_name(&self, other: &Self) -> bool {
-                        body
-                    }
+        let trait_name = &self.trait_name;
+        let ty = &input.ident;
+        let method_name = &self.method_name;
+        quote!(
+            #[automatically_derived]
+            impl ::swc_common::#trait_name for #ty {
+                #[allow(non_snake_case)]
+                fn #method_name(&self, other: &Self) -> bool {
+                    #body
                 }
             }
         )
@@ -82,30 +77,23 @@ impl Deriver {
     fn make_body(&self, data: &Data) -> Expr {
         match data {
             Data::Struct(s) => {
-                let arm = self.make_arm_from_fields(q!({ Self }).parse(), &s.fields);
+                let arm = self.make_arm_from_fields(parse_quote!(Self), &s.fields);
 
-                q!(Vars { arm }, (match (self, other) { arm })).parse()
+                parse_quote!(match (self, other) { #arm })
             }
             Data::Enum(e) => {
                 //
                 let mut arms = Punctuated::<_, Token![,]>::default();
                 for v in &e.variants {
-                    let arm = self.make_arm_from_fields(
-                        q!(Vars { Variant: &v.ident }, { Self::Variant }).parse(),
-                        &v.fields,
-                    );
+                    let vi = &v.ident;
+                    let arm = self.make_arm_from_fields(parse_quote!(Self::#vi), &v.fields);
 
                     arms.push(arm);
                 }
 
-                arms.push(
-                    q!({
-                        _ => false
-                    })
-                    .parse(),
-                );
+                arms.push(parse_quote!(_ => false));
 
-                q!(Vars { arms }, (match (self, other) { arms })).parse()
+                parse_quote!(match (self, other) { #arms })
             }
             Data::Union(_) => unimplemented!("union"),
         }
@@ -114,36 +102,35 @@ impl Deriver {
     fn make_arm_from_fields(&self, pat_path: Path, fields: &Fields) -> Arm {
         let mut l_pat_fields = Punctuated::<_, Token![,]>::default();
         let mut r_pat_fields = Punctuated::<_, Token![,]>::default();
-        let mut exprs = vec![];
+        let mut exprs = Vec::new();
 
         for (i, field) in fields
             .iter()
             .enumerate()
             .filter(|(_, f)| !(self.ignore_field)(f))
         {
-            let method_name = if field
-                .attrs
-                .iter()
-                .any(|attr| attr.path.is_ident("not_spanned") || attr.path.is_ident("use_eq"))
-            {
-                Ident::new("eq", Span::call_site())
-            } else if field
-                .attrs
-                .iter()
-                .any(|attr| attr.path.is_ident("use_eq_ignore_span"))
-            {
-                Ident::new("eq_ignore_span", Span::call_site())
-            } else {
-                self.method_name.clone()
-            };
+            let method_name =
+                if field.attrs.iter().any(|attr| {
+                    attr.path().is_ident("not_spanned") || attr.path().is_ident("use_eq")
+                }) {
+                    Ident::new("eq", Span::call_site())
+                } else if field
+                    .attrs
+                    .iter()
+                    .any(|attr| attr.path().is_ident("use_eq_ignore_span"))
+                {
+                    Ident::new("eq_ignore_span", Span::call_site())
+                } else {
+                    self.method_name.clone()
+                };
 
             let base = field
                 .ident
                 .clone()
                 .unwrap_or_else(|| Ident::new(&format!("_{}", i), field.ty.span()));
             //
-            let l_binding_ident = base.new_ident_with(|base| format!("_l_{}", base));
-            let r_binding_ident = base.new_ident_with(|base| format!("_r_{}", base));
+            let l_binding_ident = Ident::new(&format!("_l_{}", base), base.span());
+            let r_binding_ident = Ident::new(&format!("_r_{}", base), base.span());
 
             let make_pat_field = |ident: &Ident| FieldPat {
                 attrs: Default::default(),
@@ -154,10 +141,10 @@ impl Deriver {
                         span: field.ty.span(),
                     }),
                 },
-                colon_token: Some(ident.span().as_token()),
+                colon_token: Some(Token![:](ident.span())),
                 pat: Box::new(Pat::Ident(PatIdent {
                     attrs: Default::default(),
-                    by_ref: Some(field.ident.span().as_token()),
+                    by_ref: Some(Token![ref](ident.span())),
                     mutability: None,
                     ident: ident.clone(),
                     subpat: None,
@@ -167,27 +154,17 @@ impl Deriver {
             l_pat_fields.push(make_pat_field(&l_binding_ident));
             r_pat_fields.push(make_pat_field(&r_binding_ident));
 
-            exprs.push(
-                q!(
-                    Vars {
-                        method_name: &method_name,
-                        l: &l_binding_ident,
-                        r: &r_binding_ident
-                    },
-                    { l.method_name(r) }
-                )
-                .parse::<Expr>(),
-            );
+            exprs.push(parse_quote!(#l_binding_ident.#method_name(#r_binding_ident)));
         }
 
         // true && a.type_eq(&other.a) && b.type_eq(&other.b)
-        let mut expr: Expr = q!({ true }).parse();
+        let mut expr: Expr = parse_quote!(true);
 
         for expr_el in exprs {
             expr = Expr::Binary(ExprBinary {
                 attrs: Default::default(),
                 left: Box::new(expr),
-                op: BinOp::And(Span::call_site().as_token()),
+                op: BinOp::And(Token![&&](Span::call_site())),
                 right: Box::new(expr_el),
             });
         }
@@ -196,34 +173,42 @@ impl Deriver {
             attrs: Default::default(),
             pat: Pat::Tuple(PatTuple {
                 attrs: Default::default(),
-                paren_token: Span::call_site().as_token(),
+                paren_token: Default::default(),
                 elems: {
                     let mut elems = Punctuated::default();
                     elems.push(Pat::Struct(PatStruct {
                         attrs: Default::default(),
+                        qself: None,
                         path: pat_path.clone(),
-                        brace_token: Span::call_site().as_token(),
+                        brace_token: Default::default(),
                         fields: l_pat_fields,
-                        dot2_token: Some(Span::call_site().as_token()),
+                        rest: Some(PatRest {
+                            attrs: Default::default(),
+                            dot2_token: Token![..](Span::call_site()),
+                        }),
                     }));
                     elems.push(Pat::Struct(PatStruct {
                         attrs: Default::default(),
+                        qself: None,
                         path: pat_path,
-                        brace_token: Span::call_site().as_token(),
+                        brace_token: Default::default(),
                         fields: r_pat_fields,
-                        dot2_token: Some(Span::call_site().as_token()),
+                        rest: Some(PatRest {
+                            attrs: Default::default(),
+                            dot2_token: Token![..](Span::call_site()),
+                        }),
                     }));
                     elems
                 },
             }),
             guard: Default::default(),
-            fat_arrow_token: Span::call_site().as_token(),
+            fat_arrow_token: Token![=>](Span::call_site()),
             body: Box::new(Expr::Block(ExprBlock {
                 attrs: Default::default(),
                 label: Default::default(),
                 block: Block {
-                    brace_token: Span::call_site().as_token(),
-                    stmts: vec![Stmt::Expr(expr)],
+                    brace_token: Default::default(),
+                    stmts: vec![Stmt::Expr(expr, None)],
                 },
             })),
             comma: Default::default(),

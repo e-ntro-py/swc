@@ -1,7 +1,5 @@
 //// [reExportDefaultExport.ts]
-"use strict";
 //// [m1.ts]
-"use strict";
 function f() {}
 Object.defineProperty(exports, "__esModule", {
     value: !0
@@ -19,9 +17,8 @@ Object.defineProperty(exports, "__esModule", {
     }
 });
 //// [m2.ts]
-"use strict";
 Object.defineProperty(exports, "__esModule", {
     value: !0
 });
-var _m1 = require("@swc/helpers/_/_interop_require_wildcard")._(require("./m1"));
+var _m1 = /*#__PURE__*/ require("@swc/helpers/_/_interop_require_wildcard")._(require("./m1"));
 (0, _m1.f)(), (0, _m1.default)();

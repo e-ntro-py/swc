@@ -2,7 +2,6 @@
 import { _ as _class_call_check } from "@swc/helpers/_/_class_call_check";
 // N and M have the same name, same accessibility, same optionality, and N is a subtype of M
 // foo properties are valid, bar properties cause errors in the derived class declarations
-var NotOptional;
 (function(NotOptional) {
     var B = function B() {
         "use strict";
@@ -18,7 +17,6 @@ var NotOptional;
     };
 })(NotOptional || (NotOptional = {}));
 // same cases as above but with optional
-var Optional;
 (function(Optional) {
     var B = function B() {
         "use strict";
@@ -33,3 +31,4 @@ var Optional;
         _class_call_check(this, B3);
     };
 })(Optional || (Optional = {}));
+var NotOptional, Optional;

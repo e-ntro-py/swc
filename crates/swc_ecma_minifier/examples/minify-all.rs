@@ -1,20 +1,28 @@
 #![deny(warnings)]
 
-extern crate swc_node_base;
+extern crate swc_malloc;
 
-use std::{env, fs, path::PathBuf, time::Instant};
+use std::{
+    env,
+    path::PathBuf,
+    time::{Duration, Instant},
+};
 
 use anyhow::Result;
 use rayon::prelude::*;
-use swc_common::{errors::HANDLER, sync::Lrc, Mark, SourceMap, GLOBALS};
+use swc_common::{sync::Lrc, Mark, SourceMap, GLOBALS};
+use swc_ecma_ast::Program;
 use swc_ecma_codegen::text_writer::JsWriter;
 use swc_ecma_minifier::{
     optimize,
     option::{ExtraOptions, MangleOptions, MinifyOptions},
 };
 use swc_ecma_parser::parse_file_as_module;
-use swc_ecma_transforms_base::{fixer::fixer, resolver};
-use swc_ecma_visit::FoldWith;
+use swc_ecma_transforms_base::{
+    fixer::{fixer, paren_remover},
+    resolver,
+};
+use swc_ecma_utils::parallel::Parallel;
 use walkdir::WalkDir;
 
 fn main() {
@@ -23,75 +31,7 @@ fn main() {
     eprintln!("Using {} files", files.len());
 
     let start = Instant::now();
-    testing::run_test2(false, |cm, handler| {
-        GLOBALS.with(|globals| {
-            HANDLER.set(&handler, || {
-                let _ = files
-                    .into_iter()
-                    .map(|path| -> Result<_> {
-                        GLOBALS.set(globals, || {
-                            let fm = cm.load_file(&path).expect("failed to load file");
-
-                            let unresolved_mark = Mark::new();
-                            let top_level_mark = Mark::new();
-
-                            let program = parse_file_as_module(
-                                &fm,
-                                Default::default(),
-                                Default::default(),
-                                None,
-                                &mut vec![],
-                            )
-                            .map_err(|err| {
-                                err.into_diagnostic(&handler).emit();
-                            })
-                            .map(|module| {
-                                module.fold_with(&mut resolver(
-                                    unresolved_mark,
-                                    top_level_mark,
-                                    false,
-                                ))
-                            })
-                            .unwrap();
-
-                            let output = optimize(
-                                program.into(),
-                                cm.clone(),
-                                None,
-                                None,
-                                &MinifyOptions {
-                                    compress: Some(Default::default()),
-                                    mangle: Some(MangleOptions {
-                                        top_level: Some(true),
-                                        ..Default::default()
-                                    }),
-                                    ..Default::default()
-                                },
-                                &ExtraOptions {
-                                    unresolved_mark,
-                                    top_level_mark,
-                                },
-                            )
-                            .expect_module();
-
-                            let output = output.fold_with(&mut fixer(None));
-
-                            let code = print(cm.clone(), &[output], true);
-
-                            fs::write("output.js", code.as_bytes())
-                                .expect("failed to write output");
-
-                            Ok(())
-                        })
-                    })
-                    .collect::<Vec<_>>();
-
-                Ok(())
-            })
-        })
-    })
-    .unwrap();
-
+    minify_all(&files);
     eprintln!("Took {:?}", start.elapsed());
 }
 
@@ -117,15 +57,106 @@ fn expand_dirs(dirs: Vec<String>) -> Vec<PathBuf> {
         .collect()
 }
 
+#[derive(Default)]
+struct Worker {
+    total_size: usize,
+    /// Single file max duration
+    max_duration: Duration,
+}
+
+impl Parallel for Worker {
+    fn create(&self) -> Self {
+        Worker {
+            total_size: 0,
+            ..*self
+        }
+    }
+
+    fn merge(&mut self, other: Self) {
+        self.total_size += other.total_size;
+        self.max_duration = self.max_duration.max(other.max_duration);
+    }
+}
+
+#[inline(never)] // For profiling
+fn minify_all(files: &[PathBuf]) {
+    GLOBALS.set(&Default::default(), || {
+        let mut worker = Worker::default();
+
+        files.iter().for_each(|path| {
+            testing::run_test(false, |cm, handler| {
+                let fm = cm.load_file(path).expect("failed to load file");
+
+                let start = Instant::now();
+
+                let unresolved_mark = Mark::new();
+                let top_level_mark = Mark::new();
+
+                let Ok(program) = parse_file_as_module(
+                    &fm,
+                    Default::default(),
+                    Default::default(),
+                    None,
+                    &mut Vec::new(),
+                )
+                .map_err(|err| {
+                    err.into_diagnostic(handler).emit();
+                })
+                .map(Program::Module)
+                .map(|module| module.apply(&mut resolver(unresolved_mark, top_level_mark, false)))
+                .map(|module| module.apply(&mut paren_remover(None))) else {
+                    return Ok(());
+                };
+
+                let output = optimize(
+                    program,
+                    cm.clone(),
+                    None,
+                    None,
+                    &MinifyOptions {
+                        compress: Some(Default::default()),
+                        mangle: Some(MangleOptions {
+                            top_level: Some(true),
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    },
+                    &ExtraOptions {
+                        unresolved_mark,
+                        top_level_mark,
+                        mangle_name_cache: None,
+                    },
+                );
+
+                let output = output.apply(&mut fixer(None));
+
+                let code = print(cm.clone(), &[output], true);
+
+                let duration = start.elapsed();
+
+                worker.total_size += code.len();
+                worker.max_duration = worker.max_duration.max(duration);
+
+                if duration > Duration::from_secs(1) {
+                    eprintln!("{}: {:?}", path.display(), duration);
+                }
+
+                Ok(())
+            })
+            .unwrap()
+        });
+
+        eprintln!("Total size: {}", worker.total_size);
+        eprintln!("Max duration: {:?}", worker.max_duration);
+    });
+}
+
 fn print<N: swc_ecma_codegen::Node>(cm: Lrc<SourceMap>, nodes: &[N], minify: bool) -> String {
-    let mut buf = vec![];
+    let mut buf = Vec::new();
 
     {
         let mut emitter = swc_ecma_codegen::Emitter {
-            cfg: swc_ecma_codegen::Config {
-                minify,
-                ..Default::default()
-            },
+            cfg: swc_ecma_codegen::Config::default().with_minify(minify),
             cm: cm.clone(),
             comments: None,
             wr: Box::new(JsWriter::new(cm, "\n", &mut buf, None)),

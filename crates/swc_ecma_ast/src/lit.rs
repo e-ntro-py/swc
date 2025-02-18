@@ -2,18 +2,19 @@ use std::{
     borrow::Cow,
     fmt::{self, Display, Formatter},
     hash::{Hash, Hasher},
-    mem,
 };
 
+use is_macro::Is;
 use num_bigint::BigInt as BigIntValue;
-use swc_atoms::{js_word, Atom, JsWord};
+use swc_atoms::{js_word, Atom};
 use swc_common::{ast_node, util::take::Take, EqIgnoreSpan, Span, DUMMY_SP};
 
 use crate::jsx::JSXText;
 
 #[ast_node]
-#[derive(Eq, Hash, EqIgnoreSpan)]
+#[derive(Eq, Hash, EqIgnoreSpan, Is)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub enum Lit {
     #[tag("StringLiteral")]
     Str(Str),
@@ -53,7 +54,6 @@ bridge_expr_from!(Lit, Null);
 bridge_expr_from!(Lit, JSXText);
 
 bridge_lit_from!(Str, &'_ str);
-bridge_lit_from!(Str, JsWord);
 bridge_lit_from!(Str, Atom);
 bridge_lit_from!(Str, Cow<'_, str>);
 bridge_lit_from!(Str, String);
@@ -62,16 +62,36 @@ bridge_lit_from!(Number, f64);
 bridge_lit_from!(Number, usize);
 bridge_lit_from!(BigInt, BigIntValue);
 
+impl Lit {
+    pub fn set_span(&mut self, span: Span) {
+        match self {
+            Lit::Str(s) => s.span = span,
+            Lit::Bool(b) => b.span = span,
+            Lit::Null(n) => n.span = span,
+            Lit::Num(n) => n.span = span,
+            Lit::BigInt(n) => n.span = span,
+            Lit::Regex(n) => n.span = span,
+            Lit::JSXText(n) => n.span = span,
+        }
+    }
+}
+
 #[ast_node("BigIntLiteral")]
 #[derive(Eq, Hash)]
 pub struct BigInt {
     pub span: Span,
-    #[cfg_attr(any(feature = "rkyv-impl"), with(EncodeBigInt))]
+    #[cfg_attr(any(feature = "rkyv-impl"), rkyv(with = EncodeBigInt))]
     pub value: Box<BigIntValue>,
 
     /// Use `None` value only for transformations to avoid recalculate
     /// characters in big integer
     pub raw: Option<Atom>,
+}
+
+#[cfg(feature = "shrink-to-fit")]
+impl shrink_to_fit::ShrinkToFit for BigInt {
+    #[inline(always)]
+    fn shrink_to_fit(&mut self) {}
 }
 
 impl EqIgnoreSpan for BigInt {
@@ -82,32 +102,32 @@ impl EqIgnoreSpan for BigInt {
 
 #[cfg(feature = "rkyv-impl")]
 #[derive(Debug, Clone, Copy)]
-#[cfg_attr(feature = "rkyv-impl", derive(rkyv::bytecheck::CheckBytes))]
+#[cfg_attr(feature = "rkyv-impl", derive(bytecheck::CheckBytes))]
 #[cfg_attr(feature = "rkyv-impl", repr(C))]
 pub struct EncodeBigInt;
 
-#[cfg(any(feature = "rkyv-impl"))]
+#[cfg(feature = "rkyv-impl")]
 impl rkyv::with::ArchiveWith<Box<BigIntValue>> for EncodeBigInt {
     type Archived = rkyv::Archived<String>;
     type Resolver = rkyv::Resolver<String>;
 
-    unsafe fn resolve_with(
+    fn resolve_with(
         field: &Box<BigIntValue>,
-        pos: usize,
         resolver: Self::Resolver,
-        out: *mut Self::Archived,
+        out: rkyv::Place<Self::Archived>,
     ) {
         use rkyv::Archive;
 
         let s = field.to_string();
-        s.resolve(pos, resolver, out);
+        s.resolve(resolver, out);
     }
 }
 
-#[cfg(any(feature = "rkyv-impl"))]
+#[cfg(feature = "rkyv-impl")]
 impl<S> rkyv::with::SerializeWith<Box<BigIntValue>, S> for EncodeBigInt
 where
-    S: ?Sized + rkyv::ser::Serializer,
+    S: ?Sized + rancor::Fallible + rkyv::ser::Writer,
+    S::Error: rancor::Source,
 {
     fn serialize_with(
         field: &Box<BigIntValue>,
@@ -118,10 +138,10 @@ where
     }
 }
 
-#[cfg(any(feature = "rkyv-impl"))]
+#[cfg(feature = "rkyv-impl")]
 impl<D> rkyv::with::DeserializeWith<rkyv::Archived<String>, Box<BigIntValue>, D> for EncodeBigInt
 where
-    D: ?Sized + rkyv::Fallible,
+    D: ?Sized + rancor::Fallible,
 {
     fn deserialize_with(
         field: &rkyv::Archived<String>,
@@ -161,11 +181,11 @@ impl From<BigIntValue> for BigInt {
 /// A string literal.
 #[ast_node("StringLiteral")]
 #[derive(Eq, Hash)]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub struct Str {
     pub span: Span,
 
-    #[cfg_attr(any(feature = "rkyv-impl"), with(swc_atoms::EncodeJsWord))]
-    pub value: JsWord,
+    pub value: Atom,
 
     /// Use `None` value only for transformations to avoid recalculate escaped
     /// characters in strings
@@ -199,6 +219,54 @@ impl Str {
     pub fn is_empty(&self) -> bool {
         self.value.is_empty()
     }
+
+    pub fn from_tpl_raw(tpl_raw: &str) -> Atom {
+        let mut buf = String::with_capacity(tpl_raw.len());
+
+        let mut iter = tpl_raw.chars();
+
+        while let Some(c) = iter.next() {
+            match c {
+                '\\' => {
+                    if let Some(next) = iter.next() {
+                        match next {
+                            '`' | '$' | '\\' => {
+                                buf.push(next);
+                            }
+                            'b' => {
+                                buf.push('\u{0008}');
+                            }
+                            'f' => {
+                                buf.push('\u{000C}');
+                            }
+                            'n' => {
+                                buf.push('\n');
+                            }
+                            'r' => {
+                                buf.push('\r');
+                            }
+                            't' => {
+                                buf.push('\t');
+                            }
+                            'v' => {
+                                buf.push('\u{000B}');
+                            }
+                            _ => {
+                                buf.push('\\');
+                                buf.push(next);
+                            }
+                        }
+                    }
+                }
+
+                c => {
+                    buf.push(c);
+                }
+            }
+        }
+
+        buf.into()
+    }
 }
 
 impl EqIgnoreSpan for Str {
@@ -207,9 +275,9 @@ impl EqIgnoreSpan for Str {
     }
 }
 
-impl From<JsWord> for Str {
+impl From<Atom> for Str {
     #[inline]
-    fn from(value: JsWord) -> Self {
+    fn from(value: Atom) -> Self {
         Str {
             span: DUMMY_SP,
             value,
@@ -218,20 +286,9 @@ impl From<JsWord> for Str {
     }
 }
 
-impl From<Atom> for Str {
-    #[inline]
-    fn from(value: Atom) -> Self {
-        Str {
-            span: DUMMY_SP,
-            value: JsWord::from(&*value),
-            raw: None,
-        }
-    }
-}
-
-bridge_from!(Str, JsWord, &'_ str);
-bridge_from!(Str, JsWord, String);
-bridge_from!(Str, JsWord, Cow<'_, str>);
+bridge_from!(Str, Atom, &'_ str);
+bridge_from!(Str, Atom, String);
+bridge_from!(Str, Atom, Cow<'_, str>);
 
 /// A boolean literal.
 ///
@@ -245,6 +302,7 @@ bridge_from!(Str, JsWord, Cow<'_, str>);
 #[ast_node("BooleanLiteral")]
 #[derive(Copy, Eq, Hash, EqIgnoreSpan)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub struct Bool {
     pub span: Span,
     pub value: bool,
@@ -272,6 +330,7 @@ impl From<bool> for Bool {
 #[ast_node("NullLiteral")]
 #[derive(Copy, Eq, Hash, EqIgnoreSpan)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub struct Null {
     pub span: Span,
 }
@@ -284,6 +343,7 @@ impl Take for Null {
 
 #[ast_node("RegExpLiteral")]
 #[derive(Eq, Hash, EqIgnoreSpan)]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub struct Regex {
     pub span: Span,
 
@@ -328,6 +388,7 @@ impl<'a> arbitrary::Arbitrary<'a> for Regex {
 /// `From<usize>`.
 
 #[ast_node("NumericLiteral")]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub struct Number {
     pub span: Span,
     /// **Note**: This should not be `NaN`. Use [crate::Ident] to represent NaN.
@@ -353,7 +414,7 @@ impl EqIgnoreSpan for Number {
 impl Hash for Number {
     fn hash<H: Hasher>(&self, state: &mut H) {
         fn integer_decode(val: f64) -> (u64, i16, i8) {
-            let bits: u64 = unsafe { mem::transmute(val) };
+            let bits: u64 = val.to_bits();
             let sign: i8 = if bits >> 63 == 0 { 1 } else { -1 };
             let mut exponent: i16 = ((bits >> 52) & 0x7ff) as i16;
             let mantissa = if exponent == 0 {

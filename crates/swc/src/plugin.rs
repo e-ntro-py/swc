@@ -7,13 +7,14 @@
 )]
 
 use serde::{Deserialize, Serialize};
-#[cfg(any(feature = "plugin"))]
+use swc_common::errors::HANDLER;
+use swc_ecma_ast::Pass;
+#[cfg(feature = "plugin")]
 use swc_ecma_ast::*;
-#[cfg(not(any(feature = "plugin")))]
-use swc_ecma_transforms::pass::noop;
-use swc_ecma_visit::{noop_fold_type, Fold};
+use swc_ecma_visit::{fold_pass, noop_fold_type, Fold};
 
 /// A tuple represents a plugin.
+///
 /// First element is a resolvable name to the plugin, second is a JSON object
 /// that represents configuration option for those plugin.
 /// Type of plugin's configuration is up to each plugin - swc/core does not have
@@ -29,14 +30,14 @@ pub fn plugins(
     comments: Option<swc_common::comments::SingleThreadedComments>,
     source_map: std::sync::Arc<swc_common::SourceMap>,
     unresolved_mark: swc_common::Mark,
-) -> impl Fold {
-    RustPlugins {
+) -> impl Pass {
+    fold_pass(RustPlugins {
         plugins: configured_plugins,
         metadata_context,
         comments,
         source_map,
         unresolved_mark,
-    }
+    })
 }
 
 struct RustPlugins {
@@ -48,23 +49,30 @@ struct RustPlugins {
 }
 
 impl RustPlugins {
-    #[cfg(any(feature = "plugin"))]
+    #[cfg(feature = "plugin")]
     fn apply(&mut self, n: Program) -> Result<Program, anyhow::Error> {
         use anyhow::Context;
         if self.plugins.is_none() || self.plugins.as_ref().unwrap().is_empty() {
             return Ok(n);
         }
 
-        self.apply_inner(n).with_context(|| {
-            format!(
-                "failed to invoke plugin on '{:?}'",
-                self.metadata_context.filename
-            )
-        })
+        let filename = self.metadata_context.filename.clone();
+
+        if cfg!(feature = "manual-tokio-runtime") {
+            self.apply_inner(n)
+        } else {
+            let fut = async move { self.apply_inner(n) };
+            if let Ok(handle) = tokio::runtime::Handle::try_current() {
+                handle.block_on(fut)
+            } else {
+                tokio::runtime::Runtime::new().unwrap().block_on(fut)
+            }
+        }
+        .with_context(|| format!("failed to invoke plugin on '{filename:?}'"))
     }
 
     #[tracing::instrument(level = "info", skip_all, name = "apply_plugins")]
-    #[cfg(all(any(feature = "plugin"), not(target_arch = "wasm32")))]
+    #[cfg(all(feature = "plugin", not(target_arch = "wasm32")))]
     fn apply_inner(&mut self, n: Program) -> Result<Program, anyhow::Error> {
         use anyhow::Context;
         use swc_common::plugin::serialized::PluginSerializedBytes;
@@ -145,7 +153,7 @@ impl RustPlugins {
         )
     }
 
-    #[cfg(all(any(feature = "plugin"), target_arch = "wasm32"))]
+    #[cfg(all(feature = "plugin", target_arch = "wasm32"))]
     #[tracing::instrument(level = "info", skip_all)]
     fn apply_inner(&mut self, n: Program) -> Result<Program, anyhow::Error> {
         // [TODO]: unimplemented
@@ -156,17 +164,29 @@ impl RustPlugins {
 impl Fold for RustPlugins {
     noop_fold_type!();
 
-    #[cfg(any(feature = "plugin"))]
+    #[cfg(feature = "plugin")]
     fn fold_module(&mut self, n: Module) -> Module {
-        self.apply(Program::Module(n))
-            .expect("failed to invoke plugin")
-            .expect_module()
+        match self.apply(Program::Module(n)) {
+            Ok(program) => program.expect_module(),
+            Err(err) => {
+                HANDLER.with(|handler| {
+                    handler.err(&err.to_string());
+                });
+                Module::default()
+            }
+        }
     }
 
-    #[cfg(any(feature = "plugin"))]
+    #[cfg(feature = "plugin")]
     fn fold_script(&mut self, n: Script) -> Script {
-        self.apply(Program::Script(n))
-            .expect("failed to invoke plugin")
-            .expect_script()
+        match self.apply(Program::Script(n)) {
+            Ok(program) => program.expect_script(),
+            Err(err) => {
+                HANDLER.with(|handler| {
+                    handler.err(&err.to_string());
+                });
+                Script::default()
+            }
+        }
     }
 }

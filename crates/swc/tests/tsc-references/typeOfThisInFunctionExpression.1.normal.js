@@ -25,12 +25,11 @@ var C = function C() {
         var q = this;
     };
 };
-var M;
 (function(M) {
-    var fn = function fn() {
+    function fn() {
         var p = this;
         var p;
-    };
+    }
     var t = function t() {
         var p = this;
         var p;
@@ -40,3 +39,4 @@ var M;
         var x;
     };
 })(M || (M = {}));
+var M;

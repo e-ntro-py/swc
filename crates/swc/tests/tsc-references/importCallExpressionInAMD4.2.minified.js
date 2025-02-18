@@ -7,7 +7,6 @@ define([
     "require",
     "exports"
 ], function(require, exports) {
-    "use strict";
     Object.defineProperty(exports, "__esModule", {
         value: !0
     }), function(target, all) {
@@ -37,7 +36,6 @@ define([
     "require",
     "exports"
 ], function(require, exports) {
-    "use strict";
     function backup() {
         return "backup";
     }
@@ -56,7 +54,6 @@ define([
     "exports",
     "@swc/helpers/_/_interop_require_wildcard"
 ], function(require, exports, _interop_require_wildcard) {
-    "use strict";
     Object.defineProperty(exports, "__esModule", {
         value: !0
     }), Object.defineProperty(exports, "D", {
@@ -69,18 +66,18 @@ define([
         method() {
             new Promise((resolve, reject)=>require([
                     "./0"
-                ], (m)=>resolve(_interop_require_wildcard._(m)), reject)), this.myModule.then((Zero)=>{
+                ], (m)=>resolve(/*#__PURE__*/ _interop_require_wildcard._(m)), reject)), this.myModule.then((Zero)=>{
                 console.log(Zero.foo());
             }, async (err)=>{
                 console.log(err), console.log((await new Promise((resolve, reject)=>require([
                         "./1"
-                    ], (m)=>resolve(_interop_require_wildcard._(m)), reject))).backup());
+                    ], (m)=>resolve(/*#__PURE__*/ _interop_require_wildcard._(m)), reject))).backup());
             });
         }
         constructor(){
             this.myModule = new Promise((resolve, reject)=>require([
                     "./0"
-                ], (m)=>resolve(_interop_require_wildcard._(m)), reject));
+                ], (m)=>resolve(/*#__PURE__*/ _interop_require_wildcard._(m)), reject));
         }
     }
 });

@@ -11,17 +11,18 @@ use std::{
 
 use once_cell::sync::Lazy;
 use regex::Regex;
+use rustc_hash::FxHashSet;
 use serde::de::DeserializeOwned;
 use serde_json::from_str;
 use swc::{
-    config::{Config, JsMinifyOptions, JscConfig, ModuleConfig, Options, TransformConfig},
+    config::{
+        Config, JsMinifyOptions, JscConfig, JscExperimental, ModuleConfig, Options, TransformConfig,
+    },
     try_with_handler, Compiler,
 };
-use swc_common::{
-    collections::AHashSet, errors::ColorConfig, FileName, SourceFile, SourceMap, GLOBALS,
-};
+use swc_common::{errors::ColorConfig, FileName, SourceFile, SourceMap, GLOBALS};
 use swc_ecma_ast::EsVersion;
-use swc_ecma_parser::{Syntax, TsConfig};
+use swc_ecma_parser::{Syntax, TsSyntax};
 use testing::NormalizedOutput;
 
 #[testing::fixture(
@@ -34,6 +35,8 @@ use testing::NormalizedOutput;
         "privateNameImplicitDeclaration.ts",
         "privateNameStaticAccessorsDerivedClasses.ts",
         "privateNameStaticAccessorssDerivedClasses.ts",
+        "jsDeclarationsEnums.ts",
+        "typeofAnExportedType.ts"
     )
 )]
 #[testing::fixture(
@@ -90,7 +93,7 @@ struct TestUnitData {
 }
 
 static OPTION_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"^[\\/]{2}\s*@(\w+)\s*:\s*([^\r\n]*)"#).unwrap());
+    Lazy::new(|| Regex::new(r"^[\\/]{2}\s*@(\w+)\s*:\s*([^\r\n]*)").unwrap());
 
 fn matrix(input: &Path) -> Vec<TestUnitData> {
     let cm = Arc::<SourceMap>::default();
@@ -102,6 +105,7 @@ fn matrix(input: &Path) -> Vec<TestUnitData> {
     let mut decorators = false;
     let mut decorator_metadata = false;
     let mut use_define_for_class_fields = false;
+    let mut verbatim_module_syntax = false;
 
     let filename = input
         .file_name()
@@ -110,7 +114,7 @@ fn matrix(input: &Path) -> Vec<TestUnitData> {
 
     let mut sub_filename = filename;
 
-    let mut files = vec![];
+    let mut files = Vec::new();
 
     let mut buffer = String::default();
     for line in fm.src.lines() {
@@ -169,6 +173,11 @@ fn matrix(input: &Path) -> Vec<TestUnitData> {
 
                     sub_filename = Cow::from(meta_data_value.trim());
                 }
+                "verbatimmodulesyntax" => {
+                    if meta_data_value.trim() == "true" {
+                        verbatim_module_syntax = true;
+                    }
+                }
                 _ => {}
             }
         } else {
@@ -195,7 +204,10 @@ fn matrix(input: &Path) -> Vec<TestUnitData> {
             let mut source = String::default();
             mem::swap(&mut source, buffer);
 
-            Some(cm.new_source_file(swc_common::FileName::Custom(filename.to_string()), source))
+            Some(cm.new_source_file(
+                swc_common::FileName::Custom(filename.to_string()).into(),
+                source,
+            ))
         } else {
             None
         }
@@ -203,8 +215,8 @@ fn matrix(input: &Path) -> Vec<TestUnitData> {
 
     // "ES3", "ES5", "ES6", "ES2015", "ES2016", "ES2017", "ES2018", "ES2019",
     // "ES2020", "ES2021", "ES2022", "ESNext"
-    fn target(value: &str) -> AHashSet<EsVersion> {
-        let mut versions = AHashSet::<EsVersion>::default();
+    fn target(value: &str) -> FxHashSet<EsVersion> {
+        let mut versions = FxHashSet::<EsVersion>::default();
 
         value.split(',').for_each(|v| {
             let mut v = v.trim();
@@ -220,10 +232,8 @@ fn matrix(input: &Path) -> Vec<TestUnitData> {
                         EsVersion::Es2020,
                         EsVersion::Es2021,
                         EsVersion::Es2022,
+                        EsVersion::EsNext,
                     ]);
-                }
-                "esnext" => {
-                    versions.insert(EsVersion::latest());
                 }
                 "es6" | "es2015" => {
                     versions.insert(EsVersion::Es2015);
@@ -251,8 +261,8 @@ fn matrix(input: &Path) -> Vec<TestUnitData> {
 
     // "CommonJS", "AMD", "System", "UMD", "ES6", "ES2015", "ES2020", "ESNext",
     // "None", "ES2022", "Node16", "NodeNext"
-    fn module(value: &str) -> AHashSet<Module> {
-        let mut modules = AHashSet::<Module>::default();
+    fn module(value: &str) -> FxHashSet<Module> {
+        let mut modules = FxHashSet::<Module>::default();
 
         value.split(',').for_each(|v| {
             let v = v.trim();
@@ -313,8 +323,8 @@ fn matrix(input: &Path) -> Vec<TestUnitData> {
                 Self::Umd => ModuleConfig::Umd(Default::default()),
                 Self::Amd => ModuleConfig::Amd(Default::default()),
                 Self::SystemJs => ModuleConfig::SystemJs(Default::default()),
-                Self::Es6 => ModuleConfig::Es6,
-                Self::NodeNext => ModuleConfig::NodeNext,
+                Self::Es6 => ModuleConfig::Es6(Default::default()),
+                Self::NodeNext => ModuleConfig::NodeNext(Default::default()),
             }
         }
     }
@@ -333,7 +343,7 @@ fn matrix(input: &Path) -> Vec<TestUnitData> {
     "#,
     );
 
-    let mut test_unit_data_list = vec![];
+    let mut test_unit_data_list = Vec::new();
 
     let is_jsx = input
         .extension()
@@ -346,7 +356,7 @@ fn matrix(input: &Path) -> Vec<TestUnitData> {
     for minify in [None, Some(default_minify)] {
         for target in targets.clone() {
             for module in modules.clone() {
-                let mut vary_name = vec![];
+                let mut vary_name = Vec::new();
 
                 if modules.len() > 1 {
                     vary_name.push(format!("module={}", &module));
@@ -375,7 +385,7 @@ fn matrix(input: &Path) -> Vec<TestUnitData> {
                 let opts = Options {
                     config: Config {
                         jsc: JscConfig {
-                            syntax: Some(Syntax::Typescript(TsConfig {
+                            syntax: Some(Syntax::Typescript(TsSyntax {
                                 tsx: is_jsx,
                                 decorators,
                                 dts: false,
@@ -388,9 +398,14 @@ fn matrix(input: &Path) -> Vec<TestUnitData> {
                             transform: Some(TransformConfig {
                                 use_define_for_class_fields: use_define_for_class_fields.into(),
                                 decorator_metadata: decorator_metadata.into(),
+                                verbatim_module_syntax: verbatim_module_syntax.into(),
                                 ..Default::default()
                             })
                             .into(),
+                            experimental: JscExperimental {
+                                disable_all_lints: false.into(),
+                                ..Default::default()
+                            },
                             ..Default::default()
                         },
                         module: Some(module.into()),
@@ -422,7 +437,7 @@ fn compile(output: &Path, test_unit_data: TestUnitData) {
     let mut result = String::default();
 
     for file in test_unit_data.files {
-        let filename = match &file.name {
+        let filename = match &*file.name {
             FileName::Custom(filename) => filename,
             _ => unreachable!(),
         };

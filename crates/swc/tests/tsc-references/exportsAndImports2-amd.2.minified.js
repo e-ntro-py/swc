@@ -7,7 +7,6 @@ define([
     "require",
     "exports"
 ], function(require, exports) {
-    "use strict";
     Object.defineProperty(exports, "__esModule", {
         value: !0
     }), function(target, all) {
@@ -31,7 +30,6 @@ define([
     "exports",
     "./t1"
 ], function(require, exports, _t1) {
-    "use strict";
     Object.defineProperty(exports, "__esModule", {
         value: !0
     }), function(target, all) {
@@ -40,11 +38,11 @@ define([
             get: all[name]
         });
     }(exports, {
-        y: function() {
-            return _t1.x;
-        },
         x: function() {
             return _t1.y;
+        },
+        y: function() {
+            return _t1.x;
         }
     });
 });
@@ -54,7 +52,6 @@ define([
     "exports",
     "./t1"
 ], function(require, exports, _t1) {
-    "use strict";
     Object.defineProperty(exports, "__esModule", {
         value: !0
     }), function(target, all) {
@@ -63,11 +60,11 @@ define([
             get: all[name]
         });
     }(exports, {
-        y: function() {
-            return _t1.x;
-        },
         x: function() {
             return _t1.y;
+        },
+        y: function() {
+            return _t1.x;
         }
     });
 });

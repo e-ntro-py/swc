@@ -1,7 +1,8 @@
 use std::{collections::VecDeque, mem::take};
 
+use rustc_hash::FxHashSet;
 use swc_atoms::JsWord;
-use swc_common::{collections::AHashSet, input::Input, BytePos, Span};
+use swc_common::{input::Input, BytePos, Span};
 use swc_xml_ast::{AttributeToken, Token, TokenAndSpan};
 
 use crate::{
@@ -156,7 +157,7 @@ where
             finished: false,
             state: State::Data,
             return_state: None,
-            errors: vec![],
+            errors: Vec::new(),
             additional_allowed_character: None,
             pending_tokens: VecDeque::new(),
             doctype_raw: None,
@@ -171,7 +172,10 @@ where
         // A leading Byte Order Mark (BOM) causes the character encoding argument to be
         // ignored and will itself be skipped.
         if lexer.input.is_at_start() && lexer.input.cur() == Some('\u{feff}') {
-            lexer.input.bump();
+            unsafe {
+                // Safety: cur() is Some('\u{feff}')
+                lexer.input.bump();
+            }
         }
 
         lexer
@@ -247,13 +251,19 @@ where
         self.cur_pos = self.input.cur_pos();
 
         if self.cur.is_some() {
-            self.input.bump();
+            unsafe {
+                // Safety: cur() is Some(c)
+                self.input.bump();
+            }
         }
     }
 
     #[inline(always)]
     fn reconsume(&mut self) {
-        self.input.reset_to(self.cur_pos);
+        unsafe {
+            // Safety: We got cur_pos from self.input
+            self.input.reset_to(self.cur_pos);
+        }
     }
 
     #[inline(always)]
@@ -279,7 +289,7 @@ where
     #[cold]
     fn emit_error(&mut self, kind: ErrorKind) {
         self.errors.push(Error::new(
-            Span::new(self.cur_pos, self.input.cur_pos(), Default::default()),
+            Span::new(self.cur_pos, self.input.cur_pos()),
             kind,
         ));
     }
@@ -288,7 +298,7 @@ where
     fn emit_token(&mut self, token: Token) {
         let cur_pos = self.input.cur_pos();
 
-        let span = Span::new(self.last_token_pos, cur_pos, Default::default());
+        let span = Span::new(self.last_token_pos, cur_pos);
 
         self.last_token_pos = cur_pos;
         self.pending_tokens.push_back(TokenAndSpan { span, token });
@@ -299,7 +309,10 @@ where
         let anything_else = |lexer: &mut Lexer<I>| {
             lexer.emit_error(ErrorKind::InvalidEntityCharacter);
             lexer.cur_pos = cur_pos;
-            lexer.input.reset_to(cur_pos);
+            unsafe {
+                // Safety: We got cur_post from self.input
+                lexer.input.reset_to(cur_pos);
+            }
         };
 
         // This section defines how to consume a character reference, optionally with an
@@ -318,7 +331,10 @@ where
             Some(c) if self.additional_allowed_character == Some(c) => {
                 self.emit_error(ErrorKind::InvalidEntityCharacter);
                 self.cur_pos = cur_pos;
-                self.input.reset_to(cur_pos);
+                unsafe {
+                    // Safety: We got cur_post from self.input
+                    self.input.reset_to(cur_pos);
+                }
             }
             Some('l') => match self.consume_next_char() {
                 Some('t') => {
@@ -421,7 +437,7 @@ where
             },
             Some('#') => {
                 let mut base = 10;
-                let mut characters = vec![];
+                let mut characters = Vec::new();
                 let mut has_semicolon = false;
 
                 match self.consume_next_char() {
@@ -467,7 +483,10 @@ where
                 if characters.is_empty() {
                     // TODO
                     self.cur_pos = cur_pos;
-                    self.input.reset_to(cur_pos);
+                    unsafe {
+                        // Safety: We got cur_post from self.input
+                        self.input.reset_to(cur_pos);
+                    }
 
                     return None;
                 }
@@ -553,7 +572,10 @@ where
                 raw.push(c);
 
                 if self.input.cur() == Some('\n') {
-                    self.input.bump();
+                    unsafe {
+                        // Safety: cur() is Some('\n')
+                        self.input.bump();
+                    }
 
                     raw.push('\n');
                 }
@@ -765,8 +787,7 @@ where
             }) = self.current_tag_token
             {
                 if let Some(last) = attributes.last_mut() {
-                    last.span =
-                        Span::new(attribute_start_position, self.cur_pos, Default::default());
+                    last.span = Span::new(attribute_start_position, self.cur_pos);
                 }
             }
         }
@@ -784,7 +805,7 @@ where
                 current_tag_token.kind = kind;
             }
 
-            let mut already_seen: AHashSet<JsWord> = Default::default();
+            let mut already_seen: FxHashSet<JsWord> = Default::default();
 
             let attributes = current_tag_token
                 .attributes
@@ -873,7 +894,10 @@ where
                 raw_c.push(c);
 
                 if self.input.cur() == Some('\n') {
-                    self.input.bump();
+                    unsafe {
+                        // Safety: cur() is Some('\n')
+                        self.input.bump();
+                    }
 
                     raw_c.push('\n');
                 }
@@ -937,7 +961,10 @@ where
             raw.push(c);
 
             if self.input.cur() == Some('\n') {
-                self.input.bump();
+                unsafe {
+                    // Safety: cur() is Some('\n')
+                    self.input.bump();
+                }
 
                 raw.push('\n');
             }
@@ -1149,11 +1176,7 @@ where
                     }
                     _ => {
                         self.errors.push(Error::new(
-                            Span::new(
-                                self.cur_pos - BytePos(1),
-                                self.input.cur_pos() - BytePos(1),
-                                Default::default(),
-                            ),
+                            Span::new(self.cur_pos - BytePos(1), self.input.cur_pos() - BytePos(1)),
                             ErrorKind::MissingWhitespaceBeforeQuestionInProcessingInstruction,
                         ));
                         self.set_processing_instruction_token(None, Some('?'));
@@ -1236,7 +1259,10 @@ where
                     lexer.state = State::BogusComment;
                     lexer.cur_pos = cur_pos;
                     // We don't validate input here because we reset position
-                    lexer.input.reset_to(cur_pos);
+                    unsafe {
+                        // Safety: cur_pos is in the range of input
+                        lexer.input.reset_to(cur_pos);
+                    }
                 };
 
                 // If the next few characters are:
@@ -2464,7 +2490,10 @@ where
                             }
                             _ => {
                                 self.cur_pos = cur_pos;
-                                self.input.reset_to(cur_pos);
+                                unsafe {
+                                    // Safety: We got cur_pos from self.input.cur_pos()
+                                    self.input.reset_to(cur_pos);
+                                }
                                 self.emit_error(
                                     ErrorKind::InvalidCharacterSequenceAfterDoctypeName,
                                 );
@@ -3074,7 +3103,10 @@ where
     #[inline(always)]
     fn skip_next_lf(&mut self, c: char) {
         if c == '\r' && self.input.cur() == Some('\n') {
-            self.input.bump();
+            unsafe {
+                // Safety: cur() is Some('\n')
+                self.input.bump();
+            }
         }
     }
 }

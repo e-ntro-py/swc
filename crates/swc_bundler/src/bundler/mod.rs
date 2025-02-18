@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 
 use anyhow::{Context, Error};
+use rustc_hash::FxHashMap;
 use swc_atoms::JsWord;
-use swc_common::{
-    collections::AHashMap, sync::Lrc, FileName, Globals, Mark, SourceMap, SyntaxContext, GLOBALS,
-};
+use swc_common::{sync::Lrc, FileName, Globals, Mark, SourceMap, SyntaxContext, GLOBALS};
 use swc_ecma_ast::Module;
 
 use self::scope::Scope;
@@ -48,16 +47,11 @@ pub struct Config {
     pub module: ModuleType,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, Default)]
 pub enum ModuleType {
+    #[default]
     Es,
     Iife,
-}
-
-impl Default for ModuleType {
-    fn default() -> Self {
-        ModuleType::Es
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -146,7 +140,7 @@ where
     }
 
     pub(crate) fn is_external(&self, src: &JsWord) -> bool {
-        return self.config.external_modules.iter().any(|v| v == src);
+        self.config.external_modules.iter().any(|v| v == src)
     }
 
     ///
@@ -184,7 +178,7 @@ where
         // TODO: Handle dynamic imports
 
         let local = {
-            let mut output = AHashMap::default();
+            let mut output = FxHashMap::default();
 
             for res in results {
                 let (name, m) = res?;

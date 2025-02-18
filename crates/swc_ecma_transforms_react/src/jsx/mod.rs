@@ -1,25 +1,29 @@
 #![allow(clippy::redundant_allocation)]
 
-use std::{borrow::Cow, iter, iter::once, sync::Arc};
+use std::{
+    borrow::Cow,
+    iter::{self, once},
+    sync::RwLock,
+};
 
+use once_cell::sync::Lazy;
+use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 use string_enum::StringEnum;
-use swc_atoms::{js_word, Atom, JsWord};
+use swc_atoms::{atom, Atom, JsWord};
 use swc_common::{
     comments::{Comment, CommentKind, Comments},
     errors::HANDLER,
     iter::IdentifyLast,
     sync::Lrc,
     util::take::Take,
-    FileName, Mark, SourceMap, Span, Spanned, DUMMY_SP,
+    FileName, Mark, SourceMap, Span, Spanned, SyntaxContext, DUMMY_SP,
 };
 use swc_config::merge::Merge;
 use swc_ecma_ast::*;
 use swc_ecma_parser::{parse_file_as_expr, Syntax};
-use swc_ecma_utils::{
-    drop_span, prepend_stmt, private_ident, quote_ident, undefined, ExprFactory, StmtLike,
-};
-use swc_ecma_visit::{as_folder, noop_visit_mut_type, Fold, VisitMut, VisitMutWith};
+use swc_ecma_utils::{drop_span, prepend_stmt, private_ident, quote_ident, ExprFactory, StmtLike};
+use swc_ecma_visit::{noop_visit_mut_type, visit_mut_pass, VisitMut, VisitMutWith};
 
 use self::static_check::should_use_create_element;
 use crate::refresh::options::{deserialize_refresh, RefreshOptions};
@@ -58,12 +62,12 @@ pub struct Options {
 
     /// For automatic runtime
     #[serde(default)]
-    pub import_source: Option<String>,
+    pub import_source: Option<Atom>,
 
     #[serde(default)]
-    pub pragma: Option<String>,
+    pub pragma: Option<Lrc<String>>,
     #[serde(default)]
-    pub pragma_frag: Option<String>,
+    pub pragma_frag: Option<Lrc<String>>,
 
     #[serde(default)]
     pub throw_if_namespace: Option<bool>,
@@ -95,16 +99,31 @@ pub struct Options {
     pub refresh: Option<RefreshOptions>,
 }
 
-pub fn default_import_source() -> String {
-    "react".into()
+#[cfg(feature = "concurrent")]
+macro_rules! static_str {
+    ($s:expr) => {{
+        static VAL: Lazy<Lrc<String>> = Lazy::new(|| Lrc::new($s.into()));
+        VAL.clone()
+    }};
 }
 
-pub fn default_pragma() -> String {
-    "React.createElement".into()
+#[cfg(not(feature = "concurrent"))]
+macro_rules! static_str {
+    ($s:expr) => {
+        Lrc::new($s.into())
+    };
 }
 
-pub fn default_pragma_frag() -> String {
-    "React.Fragment".into()
+pub fn default_import_source() -> Atom {
+    atom!("react")
+}
+
+pub fn default_pragma() -> Lrc<String> {
+    static_str!("React.createElement")
+}
+
+pub fn default_pragma_frag() -> Lrc<String> {
+    static_str!("React.Fragment")
 }
 
 fn default_throw_if_namespace() -> bool {
@@ -115,23 +134,26 @@ fn default_throw_if_namespace() -> bool {
 pub fn parse_expr_for_jsx(
     cm: &SourceMap,
     name: &str,
-    src: String,
+    src: Lrc<String>,
     top_level_mark: Mark,
-) -> Arc<Box<Expr>> {
-    let fm = cm.new_source_file(FileName::Custom(format!("<jsx-config-{}.js>", name)), src);
+) -> Lrc<Box<Expr>> {
+    let fm = cm.new_source_file_from(
+        FileName::Internal(format!("jsx-config-{}.js", name)).into(),
+        src,
+    );
 
     parse_file_as_expr(
         &fm,
         Syntax::default(),
         Default::default(),
         None,
-        &mut vec![],
+        &mut Vec::new(),
     )
     .map_err(|e| {
         if HANDLER.is_set() {
             HANDLER.with(|h| {
                 e.into_diagnostic(h)
-                    .note("error detected while parsing option for classic jsx transform")
+                    .note("Failed to parse jsx pragma")
                     .emit()
             })
         }
@@ -141,7 +163,7 @@ pub fn parse_expr_for_jsx(
         apply_mark(&mut expr, top_level_mark);
         expr
     })
-    .map(Arc::new)
+    .map(Lrc::new)
     .unwrap_or_else(|()| {
         panic!(
             "failed to parse jsx option {}: '{}' is not an expression",
@@ -153,7 +175,7 @@ pub fn parse_expr_for_jsx(
 fn apply_mark(e: &mut Expr, mark: Mark) {
     match e {
         Expr::Ident(i) => {
-            i.span = i.span.apply_mark(mark);
+            i.ctxt = i.ctxt.apply_mark(mark);
         }
         Expr::Member(MemberExpr { obj, .. }) => {
             apply_mark(obj, mark);
@@ -188,19 +210,16 @@ pub fn jsx<C>(
     options: Options,
     top_level_mark: Mark,
     unresolved_mark: Mark,
-) -> impl Fold + VisitMut
+) -> impl Pass + VisitMut
 where
     C: Comments,
 {
-    as_folder(Jsx {
+    visit_mut_pass(Jsx {
         cm: cm.clone(),
         top_level_mark,
         unresolved_mark,
         runtime: options.runtime.unwrap_or_default(),
-        import_source: options
-            .import_source
-            .unwrap_or_else(default_import_source)
-            .into(),
+        import_source: options.import_source.unwrap_or_else(default_import_source),
         import_jsx: None,
         import_jsxs: None,
         import_fragment: None,
@@ -238,7 +257,7 @@ where
 
     runtime: Runtime,
     /// For automatic runtime.
-    import_source: JsWord,
+    import_source: Atom,
     /// For automatic runtime.
     import_jsx: Option<Ident>,
     /// For automatic runtime.
@@ -249,9 +268,9 @@ where
     import_fragment: Option<Ident>,
     top_level_node: bool,
 
-    pragma: Arc<Box<Expr>>,
+    pragma: Lrc<Box<Expr>>,
     comments: Option<C>,
-    pragma_frag: Arc<Box<Expr>>,
+    pragma_frag: Lrc<Box<Expr>>,
     development: bool,
     throw_if_namespace: bool,
 }
@@ -261,13 +280,13 @@ pub struct JsxDirectives {
     pub runtime: Option<Runtime>,
 
     /// For automatic runtime.
-    pub import_source: Option<JsWord>,
+    pub import_source: Option<Atom>,
 
     /// Parsed from `@jsx`
-    pub pragma: Option<Arc<Box<Expr>>>,
+    pub pragma: Option<Lrc<Box<Expr>>>,
 
     /// Parsed from `@jsxFrag`
-    pub pragma_frag: Option<Arc<Box<Expr>>>,
+    pub pragma_frag: Option<Lrc<Box<Expr>>>,
 }
 
 fn respan(e: &mut Expr, span: Span) {
@@ -334,35 +353,39 @@ impl JsxDirectives {
                         Some("@jsxImportSource") => {
                             if let Some(src) = val {
                                 res.runtime = Some(Runtime::Automatic);
-                                res.import_source = Some(src.into());
+                                res.import_source = Some(Atom::new(src));
                             }
                         }
                         Some("@jsxFrag") => {
                             if let Some(src) = val {
-                                // TODO: Optimize
-                                let mut e = (*parse_expr_for_jsx(
-                                    cm,
-                                    "module-jsx-pragma-frag",
-                                    src.to_string(),
-                                    top_level_mark,
-                                ))
-                                .clone();
-                                respan(&mut e, cmt.span);
-                                res.pragma_frag = Some(e.into())
+                                if is_valid_for_pragma(src) {
+                                    // TODO: Optimize
+                                    let mut e = (*parse_expr_for_jsx(
+                                        cm,
+                                        "module-jsx-pragma-frag",
+                                        cache_source(src),
+                                        top_level_mark,
+                                    ))
+                                    .clone();
+                                    respan(&mut e, cmt.span);
+                                    res.pragma_frag = Some(e.into())
+                                }
                             }
                         }
                         Some("@jsx") => {
                             if let Some(src) = val {
-                                // TODO: Optimize
-                                let mut e = (*parse_expr_for_jsx(
-                                    cm,
-                                    "module-jsx-pragma",
-                                    src.to_string(),
-                                    top_level_mark,
-                                ))
-                                .clone();
-                                respan(&mut e, cmt.span);
-                                res.pragma = Some(e.into());
+                                if is_valid_for_pragma(src) {
+                                    // TODO: Optimize
+                                    let mut e = (*parse_expr_for_jsx(
+                                        cm,
+                                        "module-jsx-pragma",
+                                        cache_source(src),
+                                        top_level_mark,
+                                    ))
+                                    .clone();
+                                    respan(&mut e, cmt.span);
+                                    res.pragma = Some(e.into());
+                                }
                             }
                         }
                         _ => {}
@@ -375,6 +398,51 @@ impl JsxDirectives {
     }
 }
 
+#[cfg(feature = "concurrent")]
+fn cache_source(src: &str) -> Lrc<String> {
+    static CACHE: Lazy<RwLock<FxHashMap<String, Lrc<String>>>> =
+        Lazy::new(|| RwLock::new(FxHashMap::default()));
+
+    {
+        let cache = CACHE.write().unwrap();
+
+        if let Some(cached) = cache.get(src) {
+            return cached.clone();
+        }
+    }
+
+    let cached = Lrc::new(src.to_string());
+    {
+        let mut cache = CACHE.write().unwrap();
+        cache.insert(src.to_string(), cached.clone());
+    }
+    cached
+}
+
+#[cfg(not(feature = "concurrent"))]
+fn cache_source(src: &str) -> Lrc<String> {
+    // We cannot cache because Rc does not implement Send.
+    Lrc::new(src.to_string())
+}
+
+fn is_valid_for_pragma(s: &str) -> bool {
+    if s.is_empty() {
+        return false;
+    }
+
+    if !s.starts_with(|c: char| Ident::is_valid_start(c)) {
+        return false;
+    }
+
+    for c in s.chars() {
+        if !Ident::is_valid_continue(c) && c != '.' {
+            return false;
+        }
+    }
+
+    true
+}
+
 impl<C> Jsx<C>
 where
     C: Comments,
@@ -383,7 +451,7 @@ where
     where
         T: StmtLike,
         // Fn(Vec<(local, imported)>, src, body)
-        F: Fn(Vec<(Ident, Ident)>, &str, &mut Vec<T>),
+        F: Fn(Vec<(Ident, IdentName)>, &str, &mut Vec<T>),
     {
         if self.runtime == Runtime::Automatic {
             if let Some(local) = self.import_create_element.take() {
@@ -436,11 +504,17 @@ where
     }
 
     fn jsx_frag_to_expr(&mut self, el: JSXFragment) -> Expr {
-        let span = el.span();
+        let mut span = el.span();
 
-        let use_jsxs = count_children(&el.children) > 1;
+        let count = count_children(&el.children);
+        let use_jsxs = count > 1
+            || (count == 1 && matches!(&el.children[0], JSXElementChild::JSXSpreadChild(..)));
 
         if let Some(comments) = &self.comments {
+            if span.lo.is_dummy() {
+                span.lo = Span::dummy_with_cmt().lo;
+            }
+
             comments.add_pure_comment(span.lo);
         }
 
@@ -464,7 +538,7 @@ where
 
                 let mut props_obj = ObjectLit {
                     span: DUMMY_SP,
-                    props: vec![],
+                    props: Vec::new(),
                 };
 
                 let children = el
@@ -474,9 +548,9 @@ where
                     .map(Some)
                     .collect::<Vec<_>>();
 
-                match children.len() {
-                    0 => {}
-                    1 if children[0].as_ref().unwrap().spread.is_none() => {
+                match (children.len(), use_jsxs) {
+                    (0, _) => {}
+                    (1, false) => {
                         props_obj
                             .props
                             .push(PropOrSpread::Prop(Box::new(Prop::KeyValue(KeyValueProp {
@@ -489,10 +563,11 @@ where
                             .props
                             .push(PropOrSpread::Prop(Box::new(Prop::KeyValue(KeyValueProp {
                                 key: PropName::Ident(quote_ident!("children")),
-                                value: Box::new(Expr::Array(ArrayLit {
+                                value: ArrayLit {
                                     span: DUMMY_SP,
                                     elems: children,
-                                })),
+                                }
+                                .into(),
                             }))));
                     }
                 }
@@ -500,22 +575,23 @@ where
                 let args = once(fragment.as_arg()).chain(once(props_obj.as_arg()));
 
                 let args = if self.development {
-                    args.chain(once(undefined(DUMMY_SP).as_arg()))
+                    args.chain(once(Expr::undefined(DUMMY_SP).as_arg()))
                         .chain(once(use_jsxs.as_arg()))
                         .collect()
                 } else {
                     args.collect()
                 };
 
-                Expr::Call(CallExpr {
+                CallExpr {
                     span,
                     callee: jsx.as_callee(),
                     args,
-                    type_args: None,
-                })
+                    ..Default::default()
+                }
+                .into()
             }
             Runtime::Classic => {
-                Expr::Call(CallExpr {
+                CallExpr {
                     span,
                     callee: (*self.pragma).clone().as_callee(),
                     args: iter::once((*self.pragma_frag).clone().as_arg())
@@ -528,8 +604,9 @@ where
                                 .filter_map(|c| self.jsx_elem_child_to_expr(c))
                         })
                         .collect(),
-                    type_args: None,
-                })
+                    ..Default::default()
+                }
+                .into()
             }
         }
     }
@@ -543,13 +620,17 @@ where
     /// <div></div> => React.createElement('div', null);
     fn jsx_elem_to_expr(&mut self, el: JSXElement) -> Expr {
         let top_level_node = self.top_level_node;
-        let span = el.span();
+        let mut span = el.span();
         let use_create_element = should_use_create_element(&el.opening.attrs);
         self.top_level_node = false;
 
         let name = self.jsx_name(el.opening.name);
 
         if let Some(comments) = &self.comments {
+            if span.lo.is_dummy() {
+                span.lo = Span::dummy_with_cmt().lo;
+            }
+
             comments.add_pure_comment(span.lo);
         }
 
@@ -557,7 +638,10 @@ where
             Runtime::Automatic => {
                 // function jsx(tagName: string, props: { children: Node[], ... }, key: string)
 
-                let use_jsxs = count_children(&el.children) > 1;
+                let count = count_children(&el.children);
+                let use_jsxs = count > 1
+                    || (count == 1
+                        && matches!(&el.children[0], JSXElementChild::JSXSpreadChild(..)));
 
                 let jsx = if use_create_element {
                     self.import_create_element
@@ -576,7 +660,7 @@ where
 
                 let mut props_obj = ObjectLit {
                     span: DUMMY_SP,
-                    props: vec![],
+                    props: Vec::new(),
                 };
 
                 let mut key = None;
@@ -590,7 +674,7 @@ where
                             match attr.name {
                                 JSXAttrName::Ident(i) => {
                                     //
-                                    if !use_create_element && i.sym == js_word!("key") {
+                                    if !use_create_element && i.sym == "key" {
                                         key = attr
                                             .value
                                             .and_then(jsx_attr_value_to_expr)
@@ -666,7 +750,11 @@ where
                                         Prop::KeyValue(KeyValueProp { key, value }),
                                     )));
                                 }
-                                JSXAttrName::JSXNamespacedName(JSXNamespacedName { ns, name }) => {
+                                JSXAttrName::JSXNamespacedName(JSXNamespacedName {
+                                    ns,
+                                    name,
+                                    ..
+                                }) => {
                                     if self.throw_if_namespace {
                                         HANDLER.with(|handler| {
                                             handler
@@ -742,10 +830,11 @@ where
                             .props
                             .push(PropOrSpread::Prop(Box::new(Prop::KeyValue(KeyValueProp {
                                 key: PropName::Ident(quote_ident!("children")),
-                                value: Box::new(Expr::Array(ArrayLit {
+                                value: ArrayLit {
                                     span: DUMMY_SP,
                                     elems: children.take(),
-                                })),
+                                }
+                                .into(),
                             }))));
                     }
                 }
@@ -759,19 +848,19 @@ where
                     // set undefined literal to key if key is None
                     let key = match key {
                         Some(key) => key,
-                        None => undefined(DUMMY_SP).as_arg(),
+                        None => Expr::undefined(DUMMY_SP).as_arg(),
                     };
 
                     // set undefined literal to __source if __source is None
                     let source_props = match source_props {
                         Some(source_props) => source_props,
-                        None => undefined(DUMMY_SP).as_arg(),
+                        None => Expr::undefined(DUMMY_SP).as_arg(),
                     };
 
                     // set undefined literal to __self if __self is None
                     let self_props = match self_props {
                         Some(self_props) => self_props,
-                        None => undefined(DUMMY_SP).as_arg(),
+                        None => Expr::undefined(DUMMY_SP).as_arg(),
                     };
                     args.chain(once(key))
                         .chain(once(use_jsxs.as_arg()))
@@ -781,15 +870,16 @@ where
                 } else {
                     args.chain(key).collect()
                 };
-                Expr::Call(CallExpr {
+                CallExpr {
                     span,
                     callee: jsx.as_callee(),
                     args,
-                    type_args: Default::default(),
-                })
+                    ..Default::default()
+                }
+                .into()
             }
             Runtime::Classic => {
-                Expr::Call(CallExpr {
+                CallExpr {
                     span,
                     callee: (*self.pragma).clone().as_callee(),
                     args: iter::once(name.as_arg())
@@ -804,8 +894,9 @@ where
                                 .filter_map(|c| self.jsx_elem_child_to_expr(c))
                         })
                         .collect(),
-                    type_args: Default::default(),
-                })
+                    ..Default::default()
+                }
+                .into()
             }
         }
     }
@@ -848,11 +939,11 @@ where
 
     fn fold_attrs_for_classic(&mut self, attrs: Vec<JSXAttrOrSpread>) -> Box<Expr> {
         if attrs.is_empty() {
-            return Box::new(Expr::Lit(Lit::Null(Null { span: DUMMY_SP })));
+            return Lit::Null(Null { span: DUMMY_SP }).into();
         }
         let attr_cnt = attrs.len();
 
-        let mut props = vec![];
+        let mut props = Vec::new();
         for attr in attrs {
             match attr {
                 JSXAttrOrSpread::JSXAttr(attr) => {
@@ -876,7 +967,7 @@ where
             props,
         };
 
-        Box::new(Expr::Object(obj))
+        obj.into()
     }
 
     fn attr_to_prop(&mut self, a: JSXAttr) -> Prop {
@@ -887,11 +978,12 @@ where
                 JSXAttrValue::Lit(Lit::Str(s)) => {
                     let value = transform_jsx_attr_str(&s.value);
 
-                    Box::new(Expr::Lit(Lit::Str(Str {
+                    Lit::Str(Str {
                         span: s.span,
                         raw: None,
                         value: value.into(),
-                    })))
+                    })
+                    .into()
                 }
                 JSXAttrValue::JSXExprContainer(JSXExprContainer {
                     expr: JSXExpr::Expr(e),
@@ -906,10 +998,11 @@ where
                 }) => unreachable!("attr_to_prop(JSXEmptyExpr)"),
             })
             .unwrap_or_else(|| {
-                Box::new(Expr::Lit(Lit::Bool(Bool {
+                Lit::Bool(Bool {
                     span: key.span(),
                     value: true,
-                })))
+                })
+                .into()
             });
         Prop::KeyValue(KeyValueProp { key, value })
     }
@@ -1041,7 +1134,7 @@ where
                         ImportSpecifier::Named(ImportNamedSpecifier {
                             span: DUMMY_SP,
                             local,
-                            imported: Some(ModuleExportName::Ident(imported)),
+                            imported: Some(ModuleExportName::Ident(imported.into())),
                             is_type_only: false,
                         })
                     })
@@ -1049,7 +1142,7 @@ where
 
                 prepend_stmt(
                     stmts,
-                    ModuleItem::ModuleDecl(ModuleDecl::Import(ImportDecl {
+                    ImportDecl {
                         span: DUMMY_SP,
                         specifiers,
                         src: Str {
@@ -1059,8 +1152,10 @@ where
                         }
                         .into(),
                         type_only: Default::default(),
-                        asserts: Default::default(),
-                    })),
+                        with: Default::default(),
+                        phase: Default::default(),
+                    }
+                    .into(),
                 )
             });
         }
@@ -1089,8 +1184,8 @@ where
 
 // const { createElement } = require('react')
 // const { jsx: jsx } = require('react/jsx-runtime')
-fn add_require(imports: Vec<(Ident, Ident)>, src: &str, unresolved_mark: Mark) -> Stmt {
-    Stmt::Decl(Decl::Var(Box::new(VarDecl {
+fn add_require(imports: Vec<(Ident, IdentName)>, src: &str, unresolved_mark: Mark) -> Stmt {
+    VarDecl {
         span: DUMMY_SP,
         kind: VarDeclKind::Const,
         declare: false,
@@ -1104,15 +1199,12 @@ fn add_require(imports: Vec<(Ident, Ident)>, src: &str, unresolved_mark: Mark) -
                         if imported.sym != local.sym {
                             ObjectPatProp::KeyValue(KeyValuePatProp {
                                 key: PropName::Ident(imported),
-                                value: Box::new(Pat::Ident(BindingIdent {
-                                    id: local,
-                                    type_ann: None,
-                                })),
+                                value: Box::new(Pat::Ident(local.into())),
                             })
                         } else {
                             ObjectPatProp::Assign(AssignPatProp {
                                 span: DUMMY_SP,
-                                key: local,
+                                key: local.into(),
                                 value: None,
                             })
                         }
@@ -1125,9 +1217,10 @@ fn add_require(imports: Vec<(Ident, Ident)>, src: &str, unresolved_mark: Mark) -
             init: Some(Box::new(Expr::Call(CallExpr {
                 span: DUMMY_SP,
                 callee: Callee::Expr(Box::new(Expr::Ident(Ident {
-                    span: DUMMY_SP.apply_mark(unresolved_mark),
-                    sym: js_word!("require"),
+                    ctxt: SyntaxContext::empty().apply_mark(unresolved_mark),
+                    sym: "require".into(),
                     optional: false,
+                    ..Default::default()
                 }))),
                 args: vec![ExprOrSpread {
                     spread: None,
@@ -1137,11 +1230,13 @@ fn add_require(imports: Vec<(Ident, Ident)>, src: &str, unresolved_mark: Mark) -
                         raw: None,
                     }))),
                 }],
-                type_args: None,
+                ..Default::default()
             }))),
             definite: false,
         }],
-    })))
+        ..Default::default()
+    }
+    .into()
 }
 
 impl<C> Jsx<C>
@@ -1152,22 +1247,25 @@ where
         let span = name.span();
         match name {
             JSXElementName::Ident(i) => {
-                if i.sym == js_word!("this") {
-                    return Box::new(Expr::This(ThisExpr { span }));
+                if i.sym == "this" {
+                    return ThisExpr { span }.into();
                 }
 
                 // If it starts with lowercase
                 if i.as_ref().starts_with(|c: char| c.is_ascii_lowercase()) {
-                    Box::new(Expr::Lit(Lit::Str(Str {
+                    Lit::Str(Str {
                         span,
                         raw: None,
                         value: i.sym,
-                    })))
+                    })
+                    .into()
                 } else {
-                    Box::new(Expr::Ident(i))
+                    i.into()
                 }
             }
-            JSXElementName::JSXNamespacedName(JSXNamespacedName { ref ns, ref name }) => {
+            JSXElementName::JSXNamespacedName(JSXNamespacedName {
+                ref ns, ref name, ..
+            }) => {
                 if self.throw_if_namespace {
                     HANDLER.with(|handler| {
                         handler
@@ -1184,37 +1282,40 @@ where
 
                 let value = format!("{}:{}", ns.sym, name.sym);
 
-                Box::new(Expr::Lit(Lit::Str(Str {
+                Lit::Str(Str {
                     span,
                     raw: None,
                     value: value.into(),
-                })))
+                })
+                .into()
             }
-            JSXElementName::JSXMemberExpr(JSXMemberExpr { obj, prop }) => {
+            JSXElementName::JSXMemberExpr(JSXMemberExpr { obj, prop, .. }) => {
                 fn convert_obj(obj: JSXObject) -> Box<Expr> {
                     let span = obj.span();
 
                     (match obj {
                         JSXObject::Ident(i) => {
-                            if i.sym == js_word!("this") {
+                            if i.sym == "this" {
                                 Expr::This(ThisExpr { span })
                             } else {
-                                Expr::Ident(i)
+                                i.into()
                             }
                         }
-                        JSXObject::JSXMemberExpr(e) => Expr::Member(MemberExpr {
+                        JSXObject::JSXMemberExpr(e) => MemberExpr {
                             span,
                             obj: convert_obj(e.obj),
                             prop: MemberProp::Ident(e.prop),
-                        }),
+                        }
+                        .into(),
                     })
                     .into()
                 }
-                Box::new(Expr::Member(MemberExpr {
+                MemberExpr {
                     span,
                     obj: convert_obj(obj),
                     prop: MemberProp::Ident(prop),
-                }))
+                }
+                .into()
             }
         }
     }
@@ -1235,7 +1336,7 @@ fn to_prop_name(n: JSXAttrName) -> PropName {
                 PropName::Ident(i)
             }
         }
-        JSXAttrName::JSXNamespacedName(JSXNamespacedName { ns, name }) => {
+        JSXAttrName::JSXNamespacedName(JSXNamespacedName { ns, name, .. }) => {
             let value = format!("{}:{}", ns.sym, name.sym);
 
             PropName::Str(Str {
@@ -1283,19 +1384,20 @@ fn jsx_attr_value_to_expr(v: JSXAttrValue) -> Option<Box<Expr>> {
         JSXAttrValue::Lit(Lit::Str(s)) => {
             let value = transform_jsx_attr_str(&s.value);
 
-            Box::new(Expr::Lit(Lit::Str(Str {
+            Lit::Str(Str {
                 span: s.span,
                 raw: None,
                 value: value.into(),
-            })))
+            })
+            .into()
         }
         JSXAttrValue::Lit(lit) => Box::new(lit.into()),
         JSXAttrValue::JSXExprContainer(e) => match e.expr {
             JSXExpr::JSXEmptyExpr(_) => None?,
             JSXExpr::Expr(e) => e,
         },
-        JSXAttrValue::JSXElement(e) => Box::new(Expr::JSXElement(e)),
-        JSXAttrValue::JSXFragment(f) => Box::new(Expr::JSXFragment(f)),
+        JSXAttrValue::JSXElement(e) => e.into(),
+        JSXAttrValue::JSXFragment(f) => f.into(),
     })
 }
 

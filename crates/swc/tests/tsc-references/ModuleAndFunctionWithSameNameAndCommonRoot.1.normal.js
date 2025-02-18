@@ -1,39 +1,40 @@
 //// [module.ts]
-var A;
 (function(A) {
-    var Point;
     (function(Point) {
-        var Origin = Point.Origin = {
+        Point.Origin = {
             x: 0,
             y: 0
         };
-    })(Point = A.Point || (A.Point = {}));
+    })(A.Point || (A.Point = {}));
 })(A || (A = {}));
-//// [function.ts]
 var A;
+//// [function.ts]
 (function(A) {
-    var Point = function Point() {
+    function Point() {
         return {
             x: 0,
             y: 0
         };
-    };
+    }
+    // duplicate identifier error
     A.Point = Point;
 })(A || (A = {}));
+var A;
 //// [simple.ts]
-var B;
 (function(B) {
-    var Point = function Point() {
+    (function(Point) {
+        Point.Origin = {
+            x: 0,
+            y: 0
+        };
+    })(B.Point || (B.Point = {}));
+    function Point() {
         return {
             x: 0,
             y: 0
         };
-    };
-    (function(Point) {
-        var Origin = Point.Origin = {
-            x: 0,
-            y: 0
-        };
-    })(Point = B.Point || (B.Point = {}));
+    }
+    // duplicate identifier error
     B.Point = Point;
 })(B || (B = {}));
+var B;

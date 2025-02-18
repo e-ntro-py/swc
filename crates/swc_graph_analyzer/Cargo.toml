@@ -1,22 +1,23 @@
 [package]
-authors = ["강동윤 <kdy1997.dev@gmail.com>"]
+authors     = ["강동윤 <kdy1997.dev@gmail.com>"]
 description = "Graph analyzer"
-edition = "2021"
-include = ["Cargo.toml", "src/**/*.rs"]
-license = "Apache-2.0"
-name = "swc_graph_analyzer"
-repository = "https://github.com/swc-project/swc.git"
-version = "0.20.14"
+edition     = { workspace = true }
+include     = ["Cargo.toml", "src/**/*.rs"]
+license     = { workspace = true }
+name        = "swc_graph_analyzer"
+repository  = { workspace = true }
+version     = "7.0.0"
 
 [lib]
 bench = false
 
 [dependencies]
-ahash = "0.7.6"
-auto_impl = "0.5.0"
-petgraph = "0.6.0"
-swc_fast_graph = {version = "0.19.12", path = "../swc_fast_graph/"}
-tracing = "0.1.32"
+auto_impl      = { workspace = true }
+petgraph       = { workspace = true }
+rustc-hash     = { workspace = true }
+swc_common     = { version = "7.0.0", path = "../swc_common/" }
+swc_fast_graph = { version = "8.0.0", path = "../swc_fast_graph/" }
+tracing        = { workspace = true }
 
 [dev-dependencies]
-testing = {version = "0.33.14", path = "../testing"}
+testing = { version = "7.0.0", path = "../testing" }

@@ -1,11 +1,2 @@
 //// [enumConstantMemberWithStringEmitDeclaration.ts]
-var T1, T2, T3, T4, T5, T6;
-!function(T1) {
-    T1.a = "1", T1.b = "12", T1.c = "123";
-}(T1 || (T1 = {})), function(T2) {
-    T2.a = "1", T2.b = "12";
-}(T2 || (T2 = {})), function(T3) {
-    T3.a = "1", T3.b = "12";
-}(T3 || (T3 = {})), (T4 || (T4 = {})).a = "1", (T5 || (T5 = {})).a = "12", function(T6) {
-    T6.a = "1", T6.b = "12";
-}(T6 || (T6 = {}));
+var T1, T2, T3, T4, T5, T11 = ((T1 = T11 || {}).a = "1", T1.b = "12", T1.c = "123", T1), T21 = ((T2 = T21 || {}).a = "1", T2.b = "12", T2), T31 = ((T3 = T31 || {}).a = "1", T3.b = "12", T3), T41 = ((T4 = T41 || {}).a = "1", T4), T51 = ((T5 = T51 || {}).a = "12", T5);

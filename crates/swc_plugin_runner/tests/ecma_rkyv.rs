@@ -7,31 +7,21 @@ use std::{
 };
 
 use anyhow::{anyhow, Error};
+use rustc_hash::FxHashMap;
 use serde_json::json;
 #[cfg(feature = "__rkyv")]
 use swc_common::plugin::serialized::PluginSerializedBytes;
-use swc_common::{
-    collections::AHashMap, plugin::metadata::TransformPluginMetadataContext, sync::Lazy, FileName,
-    Mark,
-};
+use swc_common::{plugin::metadata::TransformPluginMetadataContext, sync::Lazy, FileName, Mark};
 use swc_ecma_ast::{EsVersion, Program};
-use swc_ecma_parser::{parse_file_as_program, Syntax, TsConfig};
+use swc_ecma_parser::{parse_file_as_program, Syntax, TsSyntax};
+use testing::CARGO_TARGET_DIR;
 use tracing::info;
-
-static TARGET_DIR: Lazy<PathBuf> = Lazy::new(|| {
-    cargo_metadata::MetadataCommand::new()
-        .no_deps()
-        .exec()
-        .unwrap()
-        .target_directory
-        .into()
-});
 
 /// Returns the path to the built plugin
 fn build_plugin(dir: &Path) -> Result<PathBuf, Error> {
     {
         let mut cmd = Command::new("cargo");
-        cmd.env("CARGO_TARGET_DIR", &*TARGET_DIR);
+        cmd.env("CARGO_TARGET_DIR", &*CARGO_TARGET_DIR);
         cmd.current_dir(dir);
         cmd.args(["build", "--target=wasm32-wasi", "--release"])
             .stderr(Stdio::inherit());
@@ -46,7 +36,7 @@ fn build_plugin(dir: &Path) -> Result<PathBuf, Error> {
         }
     }
 
-    for entry in fs::read_dir(&TARGET_DIR.join("wasm32-wasi").join("release"))? {
+    for entry in fs::read_dir(CARGO_TARGET_DIR.join("wasm32-wasi").join("release"))? {
         let entry = entry?;
 
         let s = entry.file_name().to_string_lossy().into_owned();
@@ -86,140 +76,140 @@ static PLUGIN_BYTES: Lazy<swc_plugin_runner::plugin_module_bytes::CompiledPlugin
 #[cfg(feature = "__rkyv")]
 #[testing::fixture("../swc_ecma_parser/tests/tsc/*.ts")]
 #[testing::fixture("../swc_ecma_parser/tests/tsc/*.tsx")]
-fn internal(input: PathBuf) -> Result<(), Error> {
+fn internal(input: PathBuf) {
     // run single plugin
-    testing::run_test(false, |cm, _handler| {
-        let fm = cm.new_source_file(FileName::Anon, "console.log(foo)".into());
+    tokio::runtime::Runtime::new().unwrap().block_on(async {
+        testing::run_test(false, |cm, _handler| {
+            let fm = cm.new_source_file(FileName::Anon.into(), "console.log(foo)".into());
 
-        let parsed = parse_file_as_program(
-            &fm,
-            Syntax::Typescript(TsConfig {
-                tsx: input.to_string_lossy().ends_with(".tsx"),
-                ..Default::default()
-            }),
-            EsVersion::latest(),
-            None,
-            &mut vec![],
-        )
-        .unwrap();
-
-        let program = PluginSerializedBytes::try_serialize(
-            &swc_common::plugin::serialized::VersionedSerializable::new(parsed.clone()),
-        )
-        .expect("Should serializable");
-        let experimental_metadata: AHashMap<String, String> = [
-            (
-                "TestExperimental".to_string(),
-                "ExperimentalValue".to_string(),
-            ),
-            ("OtherTest".to_string(), "OtherVal".to_string()),
-        ]
-        .into_iter()
-        .collect();
-
-        let mut plugin_transform_executor = swc_plugin_runner::create_plugin_transform_executor(
-            &cm,
-            &Mark::new(),
-            &Arc::new(TransformPluginMetadataContext::new(
+            let parsed = parse_file_as_program(
+                &fm,
+                Syntax::Typescript(TsSyntax {
+                    tsx: input.to_string_lossy().ends_with(".tsx"),
+                    ..Default::default()
+                }),
+                EsVersion::latest(),
                 None,
-                "development".to_string(),
-                Some(experimental_metadata),
-            )),
-            Box::new(PLUGIN_BYTES.clone()),
-            Some(json!({ "pluginConfig": "testValue" })),
-            None,
-        );
+                &mut Vec::new(),
+            )
+            .unwrap();
 
-        info!("Created transform executor");
+            let program = PluginSerializedBytes::try_serialize(
+                &swc_common::plugin::serialized::VersionedSerializable::new(parsed.clone()),
+            )
+            .expect("Should serializable");
+            let experimental_metadata: FxHashMap<String, String> = [
+                (
+                    "TestExperimental".to_string(),
+                    "ExperimentalValue".to_string(),
+                ),
+                ("OtherTest".to_string(), "OtherVal".to_string()),
+            ]
+            .into_iter()
+            .collect();
 
-        let program_bytes = plugin_transform_executor
-            .transform(&program, Some(false))
-            .expect("Plugin should apply transform");
-
-        let program: Program = program_bytes
-            .deserialize()
-            .expect("Should able to deserialize")
-            .into_inner();
-
-        assert_eq!(parsed, program);
-
-        Ok(())
-    })
-    .expect("Should able to run single plugin transform");
-
-    // Run multiple plugins.
-    testing::run_test(false, |cm, _handler| {
-        let fm = cm.new_source_file(FileName::Anon, "console.log(foo)".into());
-
-        let parsed = parse_file_as_program(
-            &fm,
-            Syntax::Es(Default::default()),
-            EsVersion::latest(),
-            None,
-            &mut vec![],
-        )
-        .unwrap();
-
-        let mut serialized_program = PluginSerializedBytes::try_serialize(
-            &swc_common::plugin::serialized::VersionedSerializable::new(parsed.clone()),
-        )
-        .expect("Should serializable");
-
-        let experimental_metadata: AHashMap<String, String> = [
-            (
-                "TestExperimental".to_string(),
-                "ExperimentalValue".to_string(),
-            ),
-            ("OtherTest".to_string(), "OtherVal".to_string()),
-        ]
-        .into_iter()
-        .collect();
-
-        let mut plugin_transform_executor = swc_plugin_runner::create_plugin_transform_executor(
-            &cm,
-            &Mark::new(),
-            &Arc::new(TransformPluginMetadataContext::new(
+            let mut plugin_transform_executor = swc_plugin_runner::create_plugin_transform_executor(
+                &cm,
+                &Mark::new(),
+                &Arc::new(TransformPluginMetadataContext::new(
+                    None,
+                    "development".to_string(),
+                    Some(experimental_metadata),
+                )),
+                Box::new(PLUGIN_BYTES.clone()),
+                Some(json!({ "pluginConfig": "testValue" })),
                 None,
-                "development".to_string(),
-                Some(experimental_metadata.clone()),
-            )),
-            Box::new(PLUGIN_BYTES.clone()),
-            Some(json!({ "pluginConfig": "testValue" })),
-            None,
-        );
+            );
 
-        serialized_program = plugin_transform_executor
-            .transform(&serialized_program, Some(false))
-            .expect("Plugin should apply transform");
+            info!("Created transform executor");
 
-        // TODO: we'll need to apply 2 different plugins
-        let mut plugin_transform_executor = swc_plugin_runner::create_plugin_transform_executor(
-            &cm,
-            &Mark::new(),
-            &Arc::new(TransformPluginMetadataContext::new(
+            let program_bytes = plugin_transform_executor
+                .transform(&program, Some(false))
+                .expect("Plugin should apply transform");
+
+            let program: Program = program_bytes
+                .deserialize()
+                .expect("Should able to deserialize")
+                .into_inner();
+
+            assert_eq!(parsed, program);
+
+            Ok(())
+        })
+        .expect("Should able to run single plugin transform");
+
+        // Run multiple plugins.
+        testing::run_test(false, |cm, _handler| {
+            let fm = cm.new_source_file(FileName::Anon.into(), "console.log(foo)".into());
+
+            let parsed = parse_file_as_program(
+                &fm,
+                Syntax::Es(Default::default()),
+                EsVersion::latest(),
                 None,
-                "development".to_string(),
-                Some(experimental_metadata),
-            )),
-            Box::new(PLUGIN_BYTES.clone()),
-            Some(json!({ "pluginConfig": "testValue" })),
-            None,
-        );
+                &mut Vec::new(),
+            )
+            .unwrap();
 
-        serialized_program = plugin_transform_executor
-            .transform(&serialized_program, Some(false))
-            .expect("Plugin should apply transform");
+            let mut serialized_program = PluginSerializedBytes::try_serialize(
+                &swc_common::plugin::serialized::VersionedSerializable::new(parsed.clone()),
+            )
+            .expect("Should serializable");
 
-        let program: Program = serialized_program
-            .deserialize()
-            .expect("Should able to deserialize")
-            .into_inner();
+            let experimental_metadata: FxHashMap<String, String> = [
+                (
+                    "TestExperimental".to_string(),
+                    "ExperimentalValue".to_string(),
+                ),
+                ("OtherTest".to_string(), "OtherVal".to_string()),
+            ]
+            .into_iter()
+            .collect();
 
-        assert_eq!(parsed, program);
+            let mut plugin_transform_executor = swc_plugin_runner::create_plugin_transform_executor(
+                &cm,
+                &Mark::new(),
+                &Arc::new(TransformPluginMetadataContext::new(
+                    None,
+                    "development".to_string(),
+                    Some(experimental_metadata.clone()),
+                )),
+                Box::new(PLUGIN_BYTES.clone()),
+                Some(json!({ "pluginConfig": "testValue" })),
+                None,
+            );
 
-        Ok(())
-    })
-    .expect("Should able to run multiple plugins transform");
+            serialized_program = plugin_transform_executor
+                .transform(&serialized_program, Some(false))
+                .expect("Plugin should apply transform");
 
-    Ok(())
+            // TODO: we'll need to apply 2 different plugins
+            let mut plugin_transform_executor = swc_plugin_runner::create_plugin_transform_executor(
+                &cm,
+                &Mark::new(),
+                &Arc::new(TransformPluginMetadataContext::new(
+                    None,
+                    "development".to_string(),
+                    Some(experimental_metadata),
+                )),
+                Box::new(PLUGIN_BYTES.clone()),
+                Some(json!({ "pluginConfig": "testValue" })),
+                None,
+            );
+
+            serialized_program = plugin_transform_executor
+                .transform(&serialized_program, Some(false))
+                .expect("Plugin should apply transform");
+
+            let program: Program = serialized_program
+                .deserialize()
+                .expect("Should able to deserialize")
+                .into_inner();
+
+            assert_eq!(parsed, program);
+
+            Ok(())
+        })
+        .expect("Should able to run multiple plugins transform");
+    });
 }

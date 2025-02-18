@@ -1,29 +1,24 @@
 //// [tsxLibraryManagedAttributes.tsx]
+import { _ as _call_super } from "@swc/helpers/_/_call_super";
 import { _ as _class_call_check } from "@swc/helpers/_/_class_call_check";
 import { _ as _inherits } from "@swc/helpers/_/_inherits";
-import { _ as _create_super } from "@swc/helpers/_/_create_super";
 var Component = /*#__PURE__*/ function(ReactComponent1) {
     "use strict";
     _inherits(Component, ReactComponent1);
-    var _super = _create_super(Component);
     function Component() {
         _class_call_check(this, Component);
-        return _super.apply(this, arguments);
+        return _call_super(this, Component, arguments);
     }
     return Component;
 }(ReactComponent);
-(function() {
-    Component.propTypes = {
-        foo: PropTypes.number,
-        bar: PropTypes.node,
-        baz: PropTypes.string.isRequired
-    };
-})();
-(function() {
-    Component.defaultProps = {
-        foo: 42
-    };
-})();
+Component.propTypes = {
+    foo: PropTypes.number,
+    bar: PropTypes.node,
+    baz: PropTypes.string.isRequired
+};
+Component.defaultProps = {
+    foo: 42
+};
 var a = /*#__PURE__*/ React.createElement(Component, {
     foo: 12,
     bar: "yes",
@@ -54,19 +49,16 @@ var f = /*#__PURE__*/ React.createElement(Component, {
 var JustPropTypes = /*#__PURE__*/ function(ReactComponent1) {
     "use strict";
     _inherits(JustPropTypes, ReactComponent1);
-    var _super = _create_super(JustPropTypes);
     function JustPropTypes() {
         _class_call_check(this, JustPropTypes);
-        return _super.apply(this, arguments);
+        return _call_super(this, JustPropTypes, arguments);
     }
     return JustPropTypes;
 }(ReactComponent);
-(function() {
-    JustPropTypes.propTypes = {
-        foo: PropTypes.number,
-        bar: PropTypes.node.isRequired
-    };
-})();
+JustPropTypes.propTypes = {
+    foo: PropTypes.number,
+    bar: PropTypes.node.isRequired
+};
 var g = /*#__PURE__*/ React.createElement(JustPropTypes, {
     foo: 12,
     bar: "ok"
@@ -85,18 +77,15 @@ var j = /*#__PURE__*/ React.createElement(JustPropTypes, {
 var JustDefaultProps = /*#__PURE__*/ function(ReactComponent1) {
     "use strict";
     _inherits(JustDefaultProps, ReactComponent1);
-    var _super = _create_super(JustDefaultProps);
     function JustDefaultProps() {
         _class_call_check(this, JustDefaultProps);
-        return _super.apply(this, arguments);
+        return _call_super(this, JustDefaultProps, arguments);
     }
     return JustDefaultProps;
 }(ReactComponent);
-(function() {
-    JustDefaultProps.defaultProps = {
-        foo: 42
-    };
-})();
+JustDefaultProps.defaultProps = {
+    foo: 42
+};
 var k = /*#__PURE__*/ React.createElement(JustDefaultProps, {
     foo: 12
 });
@@ -110,25 +99,20 @@ var m = /*#__PURE__*/ React.createElement(JustDefaultProps, {
 var BothWithSpecifiedGeneric = /*#__PURE__*/ function(ReactComponent1) {
     "use strict";
     _inherits(BothWithSpecifiedGeneric, ReactComponent1);
-    var _super = _create_super(BothWithSpecifiedGeneric);
     function BothWithSpecifiedGeneric() {
         _class_call_check(this, BothWithSpecifiedGeneric);
-        return _super.apply(this, arguments);
+        return _call_super(this, BothWithSpecifiedGeneric, arguments);
     }
     return BothWithSpecifiedGeneric;
 }(ReactComponent);
-(function() {
-    BothWithSpecifiedGeneric.propTypes = {
-        foo: PropTypes.string,
-        bar: PropTypes.node,
-        baz: PropTypes.number.isRequired
-    };
-})();
-(function() {
-    BothWithSpecifiedGeneric.defaultProps = {
-        foo: "yo"
-    };
-})();
+BothWithSpecifiedGeneric.propTypes = {
+    foo: PropTypes.string,
+    bar: PropTypes.node,
+    baz: PropTypes.number.isRequired
+};
+BothWithSpecifiedGeneric.defaultProps = {
+    foo: "yo"
+};
 var n = /*#__PURE__*/ React.createElement(BothWithSpecifiedGeneric, {
     foo: "fine",
     bar: "yes",
@@ -159,19 +143,16 @@ var s = /*#__PURE__*/ React.createElement(BothWithSpecifiedGeneric, {
 var JustPropTypesWithSpecifiedGeneric = /*#__PURE__*/ function(ReactComponent1) {
     "use strict";
     _inherits(JustPropTypesWithSpecifiedGeneric, ReactComponent1);
-    var _super = _create_super(JustPropTypesWithSpecifiedGeneric);
     function JustPropTypesWithSpecifiedGeneric() {
         _class_call_check(this, JustPropTypesWithSpecifiedGeneric);
-        return _super.apply(this, arguments);
+        return _call_super(this, JustPropTypesWithSpecifiedGeneric, arguments);
     }
     return JustPropTypesWithSpecifiedGeneric;
 }(ReactComponent);
-(function() {
-    JustPropTypesWithSpecifiedGeneric.propTypes = {
-        foo: PropTypes.string,
-        bar: PropTypes.node.isRequired
-    };
-})();
+JustPropTypesWithSpecifiedGeneric.propTypes = {
+    foo: PropTypes.string,
+    bar: PropTypes.node.isRequired
+};
 var t = /*#__PURE__*/ React.createElement(JustPropTypesWithSpecifiedGeneric, {
     foo: "nice",
     bar: "ok"
@@ -190,18 +171,15 @@ var w = /*#__PURE__*/ React.createElement(JustPropTypesWithSpecifiedGeneric, {
 var JustDefaultPropsWithSpecifiedGeneric = /*#__PURE__*/ function(ReactComponent1) {
     "use strict";
     _inherits(JustDefaultPropsWithSpecifiedGeneric, ReactComponent1);
-    var _super = _create_super(JustDefaultPropsWithSpecifiedGeneric);
     function JustDefaultPropsWithSpecifiedGeneric() {
         _class_call_check(this, JustDefaultPropsWithSpecifiedGeneric);
-        return _super.apply(this, arguments);
+        return _call_super(this, JustDefaultPropsWithSpecifiedGeneric, arguments);
     }
     return JustDefaultPropsWithSpecifiedGeneric;
 }(ReactComponent);
-(function() {
-    JustDefaultPropsWithSpecifiedGeneric.defaultProps = {
-        foo: "no"
-    };
-})();
+JustDefaultPropsWithSpecifiedGeneric.defaultProps = {
+    foo: "no"
+};
 var x = /*#__PURE__*/ React.createElement(JustDefaultPropsWithSpecifiedGeneric, {
     foo: "eh"
 });

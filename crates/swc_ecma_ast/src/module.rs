@@ -7,37 +7,23 @@ use crate::{module_decl::ModuleDecl, stmt::Stmt};
 #[ast_node]
 #[derive(Eq, Hash, Is, EqIgnoreSpan)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub enum Program {
     #[tag("Module")]
     Module(Module),
     #[tag("Script")]
     Script(Script),
-    // Reserved type for the testing purpose only. Prod codes does not utilize
-    // this at all and user should not try to attempt to use this as well.
-    // TODO: reenable once experimental_metadata breaking change is merged
-    // #[tag("ReservedUnused")]
-    // ReservedUnused(ReservedUnused),
 }
 
-#[ast_node("ReservedUnused")]
-#[derive(Eq, Hash, EqIgnoreSpan)]
-pub struct ReservedUnused {
-    pub span: Span,
-    pub body: Option<Vec<ModuleItem>>,
-}
-
-#[cfg(feature = "arbitrary")]
-#[cfg_attr(docsrs, doc(cfg(feature = "arbitrary")))]
-impl<'a> arbitrary::Arbitrary<'a> for ReservedUnused {
-    fn arbitrary(u: &mut arbitrary::Unstructured<'_>) -> arbitrary::Result<Self> {
-        let span = u.arbitrary()?;
-        let body = u.arbitrary()?;
-        Ok(Self { span, body })
+impl Take for Program {
+    fn dummy() -> Self {
+        Program::Script(Script::default())
     }
 }
 
 #[ast_node("Module")]
-#[derive(Eq, Hash, EqIgnoreSpan)]
+#[derive(Eq, Hash, EqIgnoreSpan, Default)]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub struct Module {
     pub span: Span,
 
@@ -72,7 +58,8 @@ impl Take for Module {
 }
 
 #[ast_node("Script")]
-#[derive(Eq, Hash, EqIgnoreSpan)]
+#[derive(Eq, Hash, EqIgnoreSpan, Default)]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub struct Script {
     pub span: Span,
 
@@ -109,6 +96,7 @@ impl Take for Script {
 #[ast_node]
 #[derive(Eq, Hash, Is, EqIgnoreSpan)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "shrink-to-fit", derive(shrink_to_fit::ShrinkToFit))]
 pub enum ModuleItem {
     #[tag("ImportDeclaration")]
     #[tag("ExportDeclaration")]
@@ -126,6 +114,6 @@ pub enum ModuleItem {
 
 impl Take for ModuleItem {
     fn dummy() -> Self {
-        ModuleItem::Stmt(Take::dummy())
+        Self::Stmt(Default::default())
     }
 }

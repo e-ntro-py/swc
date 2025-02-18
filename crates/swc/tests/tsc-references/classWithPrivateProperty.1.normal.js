@@ -5,26 +5,24 @@ var C = /*#__PURE__*/ function() {
     "use strict";
     function C() {
         _class_call_check(this, C);
-        this.a = "";
-        this.b = "";
+        this.a = '';
+        this.b = '';
         this.d = function() {
-            return "";
+            return '';
         };
     }
     var _proto = C.prototype;
     _proto.c = function c() {
-        return "";
+        return '';
     };
     C.f = function f() {
-        return "";
+        return '';
     };
     return C;
 }();
-(function() {
-    C.g = function() {
-        return "";
-    };
-})();
+C.g = function() {
+    return '';
+};
 var c = new C();
 var r1 = c.x;
 var r2 = c.a;

@@ -1,18 +1,19 @@
 use std::sync::Arc;
 
 use parking_lot::Mutex;
+use rustc_hash::FxHashMap;
 use swc_atoms::js_word;
-use swc_common::{collections::AHashMap, SyntaxContext, DUMMY_SP};
+use swc_common::{SyntaxContext, DUMMY_SP};
 use swc_ecma_ast::*;
 use swc_ecma_transforms_optimization::simplify::{expr_simplifier, ExprSimplifierConfig};
 use swc_ecma_usage_analyzer::marks::Marks;
-use swc_ecma_utils::{undefined, ExprCtx, ExprExt};
+use swc_ecma_utils::{ExprCtx, ExprExt};
 use swc_ecma_visit::VisitMutWith;
 
 use crate::{
     compress::{compressor, pure_optimizer, PureOptimizerConfig},
     mode::Mode,
-    option::CompressOptions,
+    option::{CompressOptions, TopLevelOptions},
 };
 
 pub struct Evaluator {
@@ -31,6 +32,8 @@ impl Evaluator {
             expr_ctx: ExprCtx {
                 unresolved_ctxt: SyntaxContext::empty().apply_mark(marks.unresolved_mark),
                 is_unresolved_ref_safe: false,
+                in_strict: true,
+                remaining_depth: 3,
             },
 
             module,
@@ -48,7 +51,7 @@ struct Eval {
 
 #[derive(Default)]
 struct EvalStore {
-    cache: AHashMap<Id, Box<Expr>>,
+    cache: FxHashMap<Id, Box<Expr>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -63,12 +66,21 @@ impl Mode for Eval {
         w.cache.insert(id, Box::new(value.clone()));
     }
 
+    fn preserve_vars(&self) -> bool {
+        true
+    }
+
+    fn should_be_very_correct(&self) -> bool {
+        false
+    }
+
     fn force_str_for_tpl(&self) -> bool {
         true
     }
 }
 
 impl Evaluator {
+    #[tracing::instrument(name = "Evaluator::run", level = "debug", skip_all)]
     fn run(&mut self) {
         if !self.done {
             self.done = true;
@@ -77,12 +89,14 @@ impl Evaluator {
             let data = self.data.clone();
             //
             self.module.visit_mut_with(&mut compressor(
-                &Default::default(),
                 marks,
                 &CompressOptions {
-                    hoist_props: true,
+                    // We should not drop unused variables.
+                    unused: false,
+                    top_level: Some(TopLevelOptions { functions: true }),
                     ..Default::default()
                 },
+                None,
                 &data,
             ));
         }
@@ -112,7 +126,7 @@ impl Evaluator {
                         obj: tag_obj,
                         prop: MemberProp::Ident(prop),
                         ..
-                    }) if tag_obj.is_global_ref_to(&self.expr_ctx, "String")
+                    }) if tag_obj.is_global_ref_to(self.expr_ctx, "String")
                         && prop.sym == *"raw" =>
                     {
                         return self.eval_tpl(&t.tpl);
@@ -142,15 +156,8 @@ impl Evaluator {
             }
 
             // "foo".length
-            Expr::Member(MemberExpr {
-                obj,
-                prop:
-                    MemberProp::Ident(Ident {
-                        sym: js_word!("length"),
-                        ..
-                    }),
-                ..
-            }) if obj.is_lit() => {}
+            Expr::Member(MemberExpr { obj, prop, .. })
+                if obj.is_lit() && prop.is_ident_with("length") => {}
 
             Expr::Unary(UnaryExpr {
                 op: op!("void"), ..
@@ -196,11 +203,12 @@ impl Evaluator {
             }) if !prop.is_computed() => {
                 let obj = self.eval_as_expr(obj)?;
 
-                let mut e = Expr::Member(MemberExpr {
+                let mut e: Expr = MemberExpr {
                     span: *span,
                     obj,
                     prop: prop.clone(),
-                });
+                }
+                .into();
 
                 e.visit_mut_with(&mut expr_simplifier(
                     self.marks.unresolved_mark,
@@ -217,26 +225,26 @@ impl Evaluator {
     pub fn eval_tpl(&mut self, q: &Tpl) -> Option<EvalResult> {
         self.run();
 
-        let mut exprs = vec![];
+        let mut exprs = Vec::new();
 
         for expr in &q.exprs {
             let res = self.eval(expr)?;
             exprs.push(match res {
-                EvalResult::Lit(v) => Box::new(Expr::Lit(v)),
-                EvalResult::Undefined => undefined(DUMMY_SP),
+                EvalResult::Lit(v) => v.into(),
+                EvalResult::Undefined => Expr::undefined(DUMMY_SP),
             });
         }
 
-        let mut e = Expr::Tpl(Tpl {
+        let mut e: Box<Expr> = Tpl {
             span: q.span,
             exprs,
             quasis: q.quasis.clone(),
-        });
+        }
+        .into();
 
         {
             e.visit_mut_with(&mut pure_optimizer(
                 &Default::default(),
-                None,
                 self.marks,
                 PureOptimizerConfig {
                     enable_join_vars: false,

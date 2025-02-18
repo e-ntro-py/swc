@@ -45,19 +45,19 @@ var as2;
 // Conditional
 var cnd1 = cnd1 ? 0 : 1;
 var cnd1;
-var cnd2 = cnd1 ? cnd1 ? "" : "" : "";
+var cnd2 = cnd1 ? cnd1 ? '' : "" : '';
 var cnd2;
 // ||
-var or1 = or1 || "";
+var or1 = or1 || '';
 var or1;
-var or2 = "" || or2;
+var or2 = '' || or2;
 var or2;
 var or3 = or3 || or3;
 var or3;
 // &&
-var and1 = and1 && "";
+var and1 = and1 && '';
 var and1;
-var and2 = "" && and2;
+var and2 = '' && and2;
 var and2;
 var and3 = and3 && and3;
 var and3;
@@ -109,10 +109,9 @@ var propAcc1 = {
 };
 var propAcc1;
 // Property access of module member
-var M2;
-(function(M21) {
-    var x = M21.x = M2.x;
-    var y = x;
+(function(M2) {
+    M2.x = M2.x;
+    var y = M2.x;
     var y;
 })(M2 || (M2 = {}));
 // Property access of class instance type
@@ -129,8 +128,7 @@ var C3 = function C3() {
     "use strict";
     _class_call_check(this, C3);
 };
-(function() {
-    C3.q = C3.q;
-})();
+C3.q = C3.q;
 var qq = C3.q;
 var qq; // Parentheses - tested a bunch above
+var M2;

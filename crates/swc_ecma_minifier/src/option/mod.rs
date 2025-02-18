@@ -1,11 +1,14 @@
 #![cfg_attr(not(feature = "extra-serde"), allow(unused))]
 
+use std::sync::Arc;
+
+use parking_lot::RwLock;
+use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
-use swc_atoms::JsWord;
-use swc_cached::regex::CachedRegex;
-use swc_common::{collections::AHashMap, Mark};
-use swc_config::merge::Merge;
-use swc_ecma_ast::{EsVersion, Expr};
+use swc_atoms::{Atom, JsWord};
+use swc_common::Mark;
+use swc_config::{merge::Merge, CachedRegex};
+use swc_ecma_ast::{EsVersion, Expr, Id};
 
 /// Implement default using serde.
 macro_rules! impl_default {
@@ -21,13 +24,14 @@ macro_rules! impl_default {
 pub mod terser;
 
 /// This is not serializable.
-#[derive(Debug)]
 pub struct ExtraOptions {
     /// It should be the [Mark] used for `resolver`.
     pub unresolved_mark: Mark,
 
     /// It should be the [Mark] used for `resolver`.
     pub top_level_mark: Mark,
+
+    pub mangle_name_cache: Option<Arc<dyn MangleCache>>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -76,11 +80,16 @@ pub struct MangleOptions {
     #[serde(default, alias = "ie8")]
     pub ie8: bool,
 
+    #[deprecated = "This field is no longer required to work around bugs in Safari 10."]
     #[serde(default, alias = "safari10")]
     pub safari10: bool,
 
     #[serde(default, alias = "reserved")]
     pub reserved: Vec<JsWord>,
+
+    /// mangle names visible in scopes where eval or with are used
+    #[serde(default)]
+    pub eval: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, Merge)]
@@ -179,13 +188,13 @@ pub struct CompressOptions {
     /// to remove spans.
     #[cfg_attr(feature = "extra-serde", serde(skip))]
     #[cfg_attr(feature = "extra-serde", serde(alias = "global_defs"))]
-    pub global_defs: AHashMap<Box<Expr>, Box<Expr>>,
+    pub global_defs: FxHashMap<Box<Expr>, Box<Expr>>,
 
     #[cfg_attr(feature = "extra-serde", serde(default))]
     #[cfg_attr(feature = "extra-serde", serde(alias = "hoist_funs"))]
     pub hoist_fns: bool,
 
-    #[cfg_attr(feature = "extra-serde", serde(default))]
+    #[cfg_attr(feature = "extra-serde", serde(default = "true_by_default"))]
     #[cfg_attr(feature = "extra-serde", serde(alias = "hoist_props"))]
     pub hoist_props: bool,
 
@@ -349,7 +358,7 @@ impl CompressOptions {
             return true;
         }
 
-        self.top_level.map(|v| v.functions).unwrap_or(false)
+        self.top_level.map(|v| v.functions).unwrap_or(false) || self.module
     }
 }
 
@@ -358,7 +367,7 @@ const fn true_by_default() -> bool {
 }
 
 const fn default_passes() -> usize {
-    3
+    2
 }
 
 const fn three_by_default() -> u8 {
@@ -391,7 +400,7 @@ impl Default for CompressOptions {
             expr: false,
             global_defs: Default::default(),
             hoist_fns: false,
-            hoist_props: false,
+            hoist_props: true,
             hoist_vars: false,
             ie8: false,
             if_return: true,
@@ -430,5 +439,43 @@ impl Default for CompressOptions {
             const_to_let: true,
             pristine_globals: true,
         }
+    }
+}
+
+pub trait MangleCache: Send + Sync {
+    fn vars_cache(&self, op: &mut dyn FnMut(&FxHashMap<Id, Atom>));
+
+    fn props_cache(&self, op: &mut dyn FnMut(&FxHashMap<Atom, Atom>));
+
+    fn update_vars_cache(&self, new_data: &FxHashMap<Id, Atom>);
+
+    fn update_props_cache(&self, new_data: &FxHashMap<Atom, Atom>);
+}
+
+#[derive(Debug, Default)]
+pub struct SimpleMangleCache {
+    pub vars: RwLock<FxHashMap<Id, Atom>>,
+    pub props: RwLock<FxHashMap<Atom, Atom>>,
+}
+
+impl MangleCache for SimpleMangleCache {
+    fn vars_cache(&self, op: &mut dyn FnMut(&FxHashMap<Id, Atom>)) {
+        let vars = self.vars.read();
+        op(&vars);
+    }
+
+    fn props_cache(&self, op: &mut dyn FnMut(&FxHashMap<Atom, Atom>)) {
+        let props = self.props.read();
+        op(&props);
+    }
+
+    fn update_vars_cache(&self, new_data: &FxHashMap<Id, JsWord>) {
+        let mut vars = self.vars.write();
+        vars.extend(new_data.iter().map(|(k, v)| (k.clone(), v.clone())));
+    }
+
+    fn update_props_cache(&self, new_data: &FxHashMap<JsWord, JsWord>) {
+        let mut props = self.props.write();
+        props.extend(new_data.iter().map(|(k, v)| (k.clone(), v.clone())));
     }
 }

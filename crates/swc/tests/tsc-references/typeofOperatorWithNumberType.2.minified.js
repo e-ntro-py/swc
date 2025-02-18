@@ -8,8 +8,7 @@ var NUMBER, M, NUMBER1 = [
 function foo() {
     return 1;
 }
-var A = function() {
-    "use strict";
+var A = /*#__PURE__*/ function() {
     function A() {
         _class_call_check(this, A);
     }
@@ -17,10 +16,7 @@ var A = function() {
         return 1;
     }, A;
 }();
-!function(M) {
-    var n;
-    M.n = n;
-}(M || (M = {}));
+M || (M = {});
 var objA = new A();
 void 0 === NUMBER || _type_of(NUMBER), _type_of(NUMBER1), _type_of(1), _type_of({
     x: 1,

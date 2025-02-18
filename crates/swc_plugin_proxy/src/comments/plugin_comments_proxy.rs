@@ -48,7 +48,16 @@ impl PluginCommentsProxy {
     #[cfg_attr(not(target_arch = "wasm32"), allow(unused))]
     fn allocate_comments_buffer_to_host<T>(&self, value: T)
     where
-        T: rkyv::Serialize<rkyv::ser::serializers::AllocSerializer<512>>,
+        T: for<'a> rkyv::Serialize<
+            rancor::Strategy<
+                rkyv::ser::Serializer<
+                    rkyv::util::AlignedVec,
+                    rkyv::ser::allocator::ArenaHandle<'a>,
+                    rkyv::ser::sharing::Share,
+                >,
+                rancor::Error,
+            >,
+        >,
     {
         #[cfg(target_arch = "wasm32")]
         {
@@ -73,7 +82,77 @@ impl PluginCommentsProxy {
     }
 }
 
-#[cfg(feature = "__plugin_mode")]
+#[cfg(all(feature = "__plugin_mode", not(target_arch = "wasm32")))]
+#[swc_trace]
+impl Comments for PluginCommentsProxy {
+    fn add_leading(&self, pos: BytePos, cmt: Comment) {
+        swc_common::comments::COMMENTS.with(|c| {
+            c.add_leading(pos, cmt);
+        });
+    }
+
+    fn add_leading_comments(&self, pos: BytePos, comments: Vec<Comment>) {
+        swc_common::comments::COMMENTS.with(|c| {
+            c.add_leading_comments(pos, comments);
+        });
+    }
+
+    fn has_leading(&self, pos: BytePos) -> bool {
+        swc_common::comments::COMMENTS.with(|c| c.has_leading(pos))
+    }
+
+    fn move_leading(&self, from: BytePos, to: BytePos) {
+        swc_common::comments::COMMENTS.with(|c| {
+            c.move_leading(from, to);
+        });
+    }
+
+    fn take_leading(&self, pos: BytePos) -> Option<Vec<Comment>> {
+        swc_common::comments::COMMENTS.with(|c| c.take_leading(pos))
+    }
+
+    fn get_leading(&self, pos: BytePos) -> Option<Vec<Comment>> {
+        swc_common::comments::COMMENTS.with(|c| c.get_leading(pos))
+    }
+
+    fn add_trailing(&self, pos: BytePos, cmt: Comment) {
+        swc_common::comments::COMMENTS.with(|c| {
+            c.add_trailing(pos, cmt);
+        });
+    }
+
+    fn add_trailing_comments(&self, pos: BytePos, comments: Vec<Comment>) {
+        swc_common::comments::COMMENTS.with(|c| {
+            c.add_trailing_comments(pos, comments);
+        });
+    }
+
+    fn has_trailing(&self, pos: BytePos) -> bool {
+        swc_common::comments::COMMENTS.with(|c| c.has_trailing(pos))
+    }
+
+    fn move_trailing(&self, from: BytePos, to: BytePos) {
+        swc_common::comments::COMMENTS.with(|c| {
+            c.move_trailing(from, to);
+        });
+    }
+
+    fn take_trailing(&self, pos: BytePos) -> Option<Vec<Comment>> {
+        swc_common::comments::COMMENTS.with(|c| c.take_trailing(pos))
+    }
+
+    fn get_trailing(&self, pos: BytePos) -> Option<Vec<Comment>> {
+        swc_common::comments::COMMENTS.with(|c| c.get_trailing(pos))
+    }
+
+    fn add_pure_comment(&self, pos: BytePos) {
+        swc_common::comments::COMMENTS.with(|c| {
+            c.add_pure_comment(pos);
+        });
+    }
+}
+
+#[cfg(all(feature = "__plugin_mode", target_arch = "wasm32"))]
 #[cfg_attr(not(target_arch = "wasm32"), allow(unused))]
 #[swc_trace]
 impl Comments for PluginCommentsProxy {

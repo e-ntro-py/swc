@@ -1,6 +1,4 @@
 //// [invalidBooleanAssignments.ts]
-var E, M;
 import "@swc/helpers/_/_class_call_check";
-!function(E) {
-    E[E.A = 0] = "A";
-}(E || (E = {})), (M || (M = {})).a = 1;
+var M, E, E1 = ((E = E1 || {})[E.A = 0] = "A", E);
+(M || (M = {})).a = 1;

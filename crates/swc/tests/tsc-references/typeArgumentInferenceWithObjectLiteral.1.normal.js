@@ -18,14 +18,14 @@ foo({
         return s;
     }
 });
-var E1;
-(function(E1) {
+var E1 = /*#__PURE__*/ function(E1) {
     E1[E1["X"] = 0] = "X";
-})(E1 || (E1 = {}));
-var E2;
-(function(E2) {
+    return E1;
+}(E1 || {});
+var E2 = /*#__PURE__*/ function(E2) {
     E2[E2["X"] = 0] = "X";
-})(E2 || (E2 = {}));
+    return E2;
+}(E2 || {});
 var v1;
 var v1 = f1({
     w: function(x) {
@@ -42,13 +42,13 @@ var v1 = f1({
     r: function() {
         return 0;
     }
-}, E1.X);
+}, 0);
 var v1 = f1({
     w: function(x) {
         return x;
     },
     r: function() {
-        return E1.X;
+        return 0;
     }
 }, 0);
 var v2;
@@ -57,14 +57,14 @@ var v2 = f1({
         return x;
     },
     r: function() {
-        return E1.X;
+        return 0;
     }
-}, E1.X);
+}, 0);
 var v3 = f1({
     w: function(x) {
         return x;
     },
     r: function() {
-        return E1.X;
+        return 0;
     }
-}, E2.X); // Error
+}, 0); // Error

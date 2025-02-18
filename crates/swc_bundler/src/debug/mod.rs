@@ -19,10 +19,7 @@ pub(crate) fn print_hygiene(event: &str, cm: &Lrc<SourceMap>, t: &Module) {
 
     writeln!(w, "==================== @ {} ====================", event).unwrap();
     Emitter {
-        cfg: swc_ecma_codegen::Config {
-            minify: false,
-            ..Default::default()
-        },
+        cfg: swc_ecma_codegen::Config::default(),
         cm: cm.clone(),
         comments: None,
         wr: Box::new(JsWriter::new(cm.clone(), "\n", &mut w, None)),
@@ -38,11 +35,11 @@ impl Fold for HygieneVisualizer {
     noop_fold_type!();
 
     fn fold_ident(&mut self, node: Ident) -> Ident {
-        if node.span.ctxt == SyntaxContext::empty() {
+        if node.ctxt == SyntaxContext::empty() {
             return node;
         }
         Ident {
-            sym: format!("{}{:?}", node.sym, node.span.ctxt()).into(),
+            sym: format!("{}{:?}", node.sym, node.ctxt).into(),
             ..node
         }
     }

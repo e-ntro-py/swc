@@ -1,59 +1,48 @@
 //// [typeOfThisInStaticMembers9.ts]
+import { _ as _call_super } from "@swc/helpers/_/_call_super";
 import { _ as _class_call_check } from "@swc/helpers/_/_class_call_check";
 import { _ as _get } from "@swc/helpers/_/_get";
 import { _ as _get_prototype_of } from "@swc/helpers/_/_get_prototype_of";
 import { _ as _inherits } from "@swc/helpers/_/_inherits";
-import { _ as _create_super } from "@swc/helpers/_/_create_super";
 var C = function C() {
     "use strict";
     _class_call_check(this, C);
 };
-(function() {
-    C.f = 1;
-})();
+C.f = 1;
 var D = /*#__PURE__*/ function(C) {
     "use strict";
     _inherits(D, C);
-    var _super = _create_super(D);
     function D() {
         _class_call_check(this, D);
-        return _super.apply(this, arguments);
+        return _call_super(this, D, arguments);
     }
     return D;
 }(C);
-(function() {
-    D.arrowFunctionBoundary = function() {
-        return _get(_get_prototype_of(D), "f", D) + 1;
+D.arrowFunctionBoundary = function() {
+    return _get(_get_prototype_of(D), "f", D) + 1;
+};
+D.functionExprBoundary = function() {
+    return _get(_get_prototype_of(D), "f", this) + 2;
+};
+D.classExprBoundary = function _class() {
+    "use strict";
+    _class_call_check(this, _class);
+    this.a = _get(_get_prototype_of(_class.prototype), "f", this) + 3;
+};
+D.functionAndClassDeclBoundary = function() {
+    var foo = function foo() {
+        return _get(_get_prototype_of(D), "f", this) + 4;
     };
-})();
-(function() {
-    D.functionExprBoundary = function() {
-        return _get(_get_prototype_of(D), "f", this) + 2;
-    };
-})();
-(function() {
-    D.classExprBoundary = function _class() {
+    var C = /*#__PURE__*/ function() {
         "use strict";
-        _class_call_check(this, _class);
-        this.a = _get(_get_prototype_of(_class.prototype), "f", this) + 3;
-    };
-})();
-(function() {
-    D.functionAndClassDeclBoundary = function() {
-        function foo() {
-            return _get(_get_prototype_of(D), "f", this) + 4;
+        function C() {
+            _class_call_check(this, C);
+            this.a = _get(_get_prototype_of(C.prototype), "f", this) + 5;
         }
-        var C = /*#__PURE__*/ function() {
-            "use strict";
-            function C() {
-                _class_call_check(this, C);
-                this.a = _get(_get_prototype_of(C.prototype), "f", this) + 5;
-            }
-            var _proto = C.prototype;
-            _proto.method = function method() {
-                return _get(_get_prototype_of(C.prototype), "f", this) + 6;
-            };
-            return C;
-        }();
+        var _proto = C.prototype;
+        _proto.method = function method() {
+            return _get(_get_prototype_of(C.prototype), "f", this) + 6;
+        };
+        return C;
     }();
-})();
+}();

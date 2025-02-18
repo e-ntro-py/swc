@@ -1,8 +1,7 @@
 //// [a.js]
 import { _ as _class_call_check } from "@swc/helpers/_/_class_call_check";
 var inner, Outer = {};
-Outer.Inner = function() {
-    "use strict";
+Outer.Inner = /*#__PURE__*/ function() {
     function _class() {
         _class_call_check(this, _class), this.x = 1;
     }

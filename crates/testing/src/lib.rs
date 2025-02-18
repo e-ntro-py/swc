@@ -1,9 +1,10 @@
 use std::{
-    env, fmt,
-    fmt::{Debug, Display, Formatter},
+    env,
+    fmt::{self, Debug, Display, Formatter},
     fs::{create_dir_all, rename, File},
     io::Write,
     path::{Component, Path, PathBuf},
+    process::Command,
     str::FromStr,
     sync::RwLock,
     thread,
@@ -13,8 +14,8 @@ use difference::Changeset;
 use once_cell::sync::Lazy;
 pub use pretty_assertions::{assert_eq, assert_ne};
 use regex::Regex;
+use rustc_hash::FxHashMap;
 use swc_common::{
-    collections::AHashMap,
     errors::{Diagnostic, Handler, HANDLER},
     sync::Lrc,
     FilePathMapping, SourceMap,
@@ -51,7 +52,7 @@ pub fn init() -> tracing::subscriber::DefaultGuard {
 }
 
 pub fn find_executable(name: &str) -> Option<PathBuf> {
-    static CACHE: Lazy<RwLock<AHashMap<String, PathBuf>>> = Lazy::new(Default::default);
+    static CACHE: Lazy<RwLock<FxHashMap<String, PathBuf>>> = Lazy::new(Default::default);
 
     {
         let locked = CACHE.read().unwrap();
@@ -60,7 +61,7 @@ pub fn find_executable(name: &str) -> Option<PathBuf> {
         }
     }
 
-    let path = env::var_os("PATH").and_then(|paths| {
+    let mut path = env::var_os("PATH").and_then(|paths| {
         env::split_paths(&paths)
             .filter_map(|dir| {
                 let full_path = dir.join(name);
@@ -72,6 +73,28 @@ pub fn find_executable(name: &str) -> Option<PathBuf> {
             })
             .next()
     });
+
+    if path.is_none() {
+        // Run yarn bin $name
+
+        path = Command::new("yarn")
+            .arg("bin")
+            .arg(name)
+            .output()
+            .ok()
+            .and_then(|output| {
+                if output.status.success() {
+                    let path = String::from_utf8(output.stdout).ok()?;
+                    let path = path.trim();
+                    let path = PathBuf::from(path);
+                    if path.is_file() {
+                        return Some(path);
+                    }
+                }
+
+                None
+            });
+    }
 
     if let Some(path) = path.clone() {
         let mut locked = CACHE.write().unwrap();
@@ -277,7 +300,7 @@ pub fn diff(l: &str, r: &str) -> String {
 #[derive(PartialEq, Eq)]
 pub struct DebugUsingDisplay<'a>(pub &'a str);
 
-impl<'a> Debug for DebugUsingDisplay<'a> {
+impl Debug for DebugUsingDisplay<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         Display::fmt(self.0, f)
     }
@@ -309,3 +332,21 @@ pub fn unignore_fixture(fixture_path: &Path) {
 
     rename(fixture_path, &new_path).expect("failed to rename");
 }
+
+pub static CARGO_TARGET_DIR: Lazy<PathBuf> = Lazy::new(|| {
+    cargo_metadata::MetadataCommand::new()
+        .no_deps()
+        .exec()
+        .unwrap()
+        .target_directory
+        .into()
+});
+
+pub static CARGO_WORKSPACE_ROOT: Lazy<PathBuf> = Lazy::new(|| {
+    cargo_metadata::MetadataCommand::new()
+        .no_deps()
+        .exec()
+        .unwrap()
+        .workspace_root
+        .into()
+});

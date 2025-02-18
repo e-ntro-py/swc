@@ -13,21 +13,21 @@ var e = x;
 var f = x;
 var g = 1;
 var g2 = 1;
-var M;
 (function(M) {
-    var x = M.x = 1;
+    M.x = 1;
 })(M || (M = {}));
 M = x;
 function i(a) {
     a = x;
 }
 i = x;
-var E;
-(function(E) {
+var E = /*#__PURE__*/ function(E) {
     E[E["A"] = 0] = "A";
-})(E || (E = {}));
+    return E;
+}(E || {});
 x = E;
-x = E.A;
+x = 0;
 x = {
     f: function f() {}
 };
+var M;

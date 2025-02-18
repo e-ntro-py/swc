@@ -1,6 +1,6 @@
 use is_macro::Is;
 use string_enum::StringEnum;
-use swc_atoms::{Atom, JsWord};
+use swc_atoms::Atom;
 use swc_common::{ast_node, EqIgnoreSpan, Span};
 
 #[ast_node("Document")]
@@ -23,14 +23,13 @@ pub struct DocumentFragment {
     feature = "rkyv",
     derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)
 )]
-#[cfg_attr(
-    feature = "rkyv",
-    archive(bound(
-        serialize = "__S: rkyv::ser::Serializer + rkyv::ser::ScratchSpace + \
-                     rkyv::ser::SharedSerializeRegistry",
-        deserialize = "__D: rkyv::de::SharedDeserializeRegistry"
-    ))
-)]
+#[cfg_attr(feature = "rkyv", derive(bytecheck::CheckBytes))]
+//#[cfg_attr(
+//    feature = "rkyv",
+//    archive(bound(serialize = "__S: rkyv::ser::ScratchSpace +
+// rkyv::ser::Serializer"))
+//)]
+#[cfg_attr(feature = "rkyv", repr(u32))]
 pub enum DocumentMode {
     /// `no-quirks`
     NoQuirks,
@@ -57,12 +56,12 @@ pub enum Child {
 #[derive(Eq, Hash)]
 pub struct DocumentType {
     pub span: Span,
-    #[cfg_attr(feature = "rkyv", with(swc_atoms::EncodeJsWord))]
-    pub name: Option<JsWord>,
-    #[cfg_attr(feature = "rkyv", with(swc_atoms::EncodeJsWord))]
-    pub public_id: Option<JsWord>,
-    #[cfg_attr(feature = "rkyv", with(swc_atoms::EncodeJsWord))]
-    pub system_id: Option<JsWord>,
+
+    pub name: Option<Atom>,
+
+    pub public_id: Option<Atom>,
+
+    pub system_id: Option<Atom>,
     pub raw: Option<Atom>,
 }
 
@@ -79,14 +78,13 @@ impl EqIgnoreSpan for DocumentType {
     feature = "rkyv",
     derive(rkyv::Archive, rkyv::Serialize, rkyv::Deserialize)
 )]
-#[cfg_attr(
-    feature = "rkyv",
-    archive(bound(
-        serialize = "__S: rkyv::ser::Serializer + rkyv::ser::ScratchSpace + \
-                     rkyv::ser::SharedSerializeRegistry",
-        deserialize = "__D: rkyv::de::SharedDeserializeRegistry"
-    ))
-)]
+#[cfg_attr(feature = "rkyv", derive(bytecheck::CheckBytes))]
+//#[cfg_attr(
+//    feature = "rkyv",
+//    archive(bound(serialize = "__S: rkyv::ser::ScratchSpace +
+// rkyv::ser::Serializer"))
+//)]
+#[cfg_attr(feature = "rkyv", repr(u32))]
 pub enum Namespace {
     /// `http://www.w3.org/1999/xhtml`
     HTML,
@@ -106,8 +104,8 @@ pub enum Namespace {
 #[derive(Eq, Hash, EqIgnoreSpan)]
 pub struct Element {
     pub span: Span,
-    #[cfg_attr(feature = "rkyv", with(swc_atoms::EncodeJsWord))]
-    pub tag_name: JsWord,
+
+    pub tag_name: Atom,
     pub namespace: Namespace,
     pub attributes: Vec<Attribute>,
     pub children: Vec<Child>,
@@ -121,13 +119,13 @@ pub struct Element {
 pub struct Attribute {
     pub span: Span,
     pub namespace: Option<Namespace>,
-    #[cfg_attr(feature = "rkyv", with(swc_atoms::EncodeJsWord))]
-    pub prefix: Option<JsWord>,
-    #[cfg_attr(feature = "rkyv", with(swc_atoms::EncodeJsWord))]
-    pub name: JsWord,
+
+    pub prefix: Option<Atom>,
+
+    pub name: Atom,
     pub raw_name: Option<Atom>,
-    #[cfg_attr(feature = "rkyv", with(swc_atoms::EncodeJsWord))]
-    pub value: Option<JsWord>,
+
+    pub value: Option<Atom>,
     pub raw_value: Option<Atom>,
 }
 
@@ -144,8 +142,8 @@ impl EqIgnoreSpan for Attribute {
 #[derive(Eq, Hash)]
 pub struct Text {
     pub span: Span,
-    #[cfg_attr(feature = "rkyv", with(swc_atoms::EncodeJsWord))]
-    pub data: JsWord,
+
+    pub data: Atom,
     pub raw: Option<Atom>,
 }
 
@@ -159,8 +157,8 @@ impl EqIgnoreSpan for Text {
 #[derive(Eq, Hash)]
 pub struct Comment {
     pub span: Span,
-    #[cfg_attr(feature = "rkyv", with(swc_atoms::EncodeJsWord))]
-    pub data: JsWord,
+
+    pub data: Atom,
     pub raw: Option<Atom>,
 }
 

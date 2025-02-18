@@ -1,9 +1,8 @@
-"use strict";
-var A;
 (function(A) {
-    var v = A.v = 25;
+    A.v = 25;
     function a() {
-        console.log(v);
+        console.log(A.v);
     }
     A.a = a;
 })(A || (A = {}));
+var A;

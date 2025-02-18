@@ -1,17 +1,11 @@
-var Foo;
-(function(Foo) {
+var Foo = /*#__PURE__*/ function(Foo) {
     Foo[Foo["hello"] = 42] = "hello";
-})(Foo || (Foo = {}));
-var Foo2;
-(function(Foo2) {
+    return Foo;
+}(Foo || {});
+var Foo2 = /*#__PURE__*/ function(Foo2) {
     Foo2["hello"] = "42";
-})(Foo2 || (Foo2 = {}));
-console.log(Foo.hello, Foo2.hello);
+    return Foo2;
+}(Foo2 || {});
+console.log(42, "42");
 console.log("hello", "こんにちは", "안녕하세요", "你好");
-var Hello;
-(function(Hello) {
-    Hello["en"] = "hello";
-    Hello["ja-JP"] = "こんにちは";
-    Hello["ko-KR"] = "안녕하세요";
-    Hello["zh-CN"] = "你好";
-})(Hello || (Hello = {}));
+;

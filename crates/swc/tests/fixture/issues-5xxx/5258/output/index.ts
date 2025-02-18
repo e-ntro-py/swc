@@ -20,7 +20,7 @@ define([
         Object.setPrototypeOf(_.prototype, target.prototype);
         return _;
     }
-    let FileSystemError = class FileSystemError1 extends Error {
+    class FileSystemError extends Error {
         static FileExists(messageOrUri) {
             return new FileSystemError(messageOrUri, FileSystemProviderErrorCode.FileExists, FileSystemError.FileExists);
         }
@@ -40,8 +40,7 @@ define([
             return new FileSystemError(messageOrUri, FileSystemProviderErrorCode.Unavailable, FileSystemError.Unavailable);
         }
         constructor(uriOrMessage, code = FileSystemProviderErrorCode.Unknown, terminator){
-            super(URI.isUri(uriOrMessage) ? uriOrMessage.toString(true) : uriOrMessage);
-            _define_property._(this, "code", void 0);
+            super(URI.isUri(uriOrMessage) ? uriOrMessage.toString(true) : uriOrMessage), _define_property._(this, "code", void 0);
             this.code = terminator?.name ?? 'Unknown';
             markAsFileSystemProviderError(this, code);
             if (typeof Object.setPrototypeOf === 'function') {
@@ -51,7 +50,7 @@ define([
                 Error.captureStackTrace(this, terminator);
             }
         }
-    };
+    }
     FileSystemError = _ts_decorate._([
         es5ClassCompat
     ], FileSystemError);

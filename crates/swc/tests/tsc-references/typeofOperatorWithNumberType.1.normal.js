@@ -20,11 +20,7 @@ var A = /*#__PURE__*/ function() {
     };
     return A;
 }();
-var M;
-(function(M) {
-    var n;
-    M.n = n;
-})(M || (M = {}));
+(function(M) {})(M || (M = {}));
 var objA = new A();
 // number type var
 var ResultIsString1 = typeof NUMBER === "undefined" ? "undefined" : _type_of(NUMBER);
@@ -73,3 +69,4 @@ z: _type_of(y.a);
 z: _type_of(objA.a);
 z: _type_of(A.foo);
 z: _type_of(M.n);
+var M;
