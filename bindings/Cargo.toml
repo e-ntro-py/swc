@@ -75,6 +75,9 @@ lto = "fat"
 # Strip debug symbols
 strip = "symbols"
 
+# Reduce binary size
+codegen-units = 1
+
   [profile.release.package]
 
     [profile.release.package.wasmer-wasix]
@@ -144,6 +147,66 @@ strip = "symbols"
     opt-level = 3
 
     [profile.release.package.wasmer-compiler]
+    opt-level = "s"
+
+    [profile.release.package.wasmer]
+    opt-level = "s"
+
+    [profile.release.package.wasmer-vm]
+    opt-level = "s"
+
+    [profile.release.package.wasmer-compiler-cranelift]
+    opt-level = "s"
+
+    [profile.release.package.regalloc2]
+    opt-level = "s"
+
+    [profile.release.package.swc_plugin_backend_wasmer]
+    opt-level = "s"
+
+    [profile.release.package.swc_plugin_runner]
+    opt-level = "s"
+
+    [profile.release.package.globset]
+    opt-level = "s"
+
+    [profile.release.package.toml_edit]
+    opt-level = "s"
+
+    [profile.release.package.miette]
+    opt-level = "s"
+
+    [profile.release.package.swc_bundler]
+    opt-level = "s"
+
+    [profile.release.package.swc_ecma_compat_es3]
+    opt-level = "s"
+
+    [profile.release.package.serde]
+    opt-level = "s"
+
+    [profile.release.package.regex-syntax]
+    opt-level = "s"
+
+    [profile.release.package.virtual-fs]
+    opt-level = "s"
+
+    [profile.release.package.swc_typescript]
+    opt-level = "s"
+
+    [profile.release.package.wasmer-package]
+    opt-level = "s"
+
+    [profile.release.package.aho-corasick]
+    opt-level = "s"
+
+    [profile.release.package.backtrace]
+    opt-level = "s"
+
+    [profile.release.package.tokio]
+    opt-level = "s"
+
+    [profile.release.package.napi]
     opt-level = "s"
 
 
